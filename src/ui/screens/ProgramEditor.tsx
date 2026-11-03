@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { DEFAULT_TARGET_RPE, MAX_EFFECTIVE_REPS } from '../../engine';
-import { createProgram, emptyProgram, findOrCreateExercise, newDay, newId, newSlot, saveProgram, updateExercise } from '../../db/ops';
+import { createProgram, emptyProgram, findOrCreateExercise, newDay, newId, newSlot, saveProgram, switchProgression, updateExercise } from '../../db/ops';
 import { getActiveProgram, getAllExercises, getArchivedPrograms, getInProgressSession } from '../../db/queries';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import type { Day, Exercise, Program, Slot } from '../../model/types';
@@ -102,7 +102,7 @@ export function ProgramEditor() {
 
       {!draft ? (
         <div class="empty">
-          <p>No program yet. Build your weekly cycle: days, then exercises with sets, reps and an RPE goal. You\u2019ll pick each weight in your first session.</p>
+          <p>No program yet. Build your weekly cycle: days, then exercises with sets, reps and an RPE goal. You’ll pick each weight in your first session.</p>
           <button type="button" class="btn btn-primary btn-big" onClick={startNew}>Create a program</button>
         </div>
       ) : (
@@ -289,10 +289,9 @@ function SlotEditor({ slot, exercise, index, count, onChange, onMove, onDelete }
   const mode = MODES.find((m) => m.value === slot.progression) ?? MODES[0];
 
   /** Switching keeps the numbers already typed: Fixed 5 → Range 5–7, Range 6–8 → Fixed 6. */
-  const setMode = (progression: Slot['progression']) =>
-    onChange(progression === 'single'
-      ? { ...slot, progression, targetReps: slot.targetReps ?? slot.repMin ?? 5 }
-      : { ...slot, progression, repMin: slot.repMin ?? slot.targetReps ?? 6, repMax: slot.repMax ?? (slot.targetReps ?? 6) + 2 });
+  const setMode = (progression: Slot['progression']) => {
+    if (progression !== slot.progression) onChange(switchProgression(slot, progression));
+  };
 
   return (
     <div class="card" style="margin-top:10px; background: var(--bg)">
@@ -302,13 +301,27 @@ function SlotEditor({ slot, exercise, index, count, onChange, onMove, onDelete }
         <button type="button" class="btn btn-small btn-icon" disabled={index === count - 1} onClick={() => onMove(1)} aria-label="Move down">↓</button>
         <button type="button" class="btn btn-small btn-icon" onClick={onDelete} aria-label="Remove">✕</button>
       </div>
-      <div class="row gap" role="radiogroup" aria-label="Reps" style="margin-top:8px">
+      <div
+        class="row gap"
+        role="radiogroup"
+        aria-label="Reps"
+        style="margin-top:8px"
+        onKeyDown={(e) => {
+          if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+          e.preventDefault();
+          const next: Slot['progression'] = slot.progression === 'single' ? 'double' : 'single';
+          setMode(next);
+          (e.currentTarget.querySelector(`[data-mode="${next}"]`) as HTMLElement | null)?.focus();
+        }}
+      >
         {MODES.map((m) => (
           <button
             type="button"
             key={m.value}
             role="radio"
             aria-checked={slot.progression === m.value}
+            tabIndex={slot.progression === m.value ? 0 : -1}
+            data-mode={m.value}
             class={`btn grow ${slot.progression === m.value ? 'btn-primary' : ''}`}
             onClick={() => setMode(m.value)}
           >

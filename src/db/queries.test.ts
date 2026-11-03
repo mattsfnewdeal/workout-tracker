@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { WorkoutDB } from './db';
 import {
   abandonSession, checkFinish, createProgram, emptyProgram, findOrCreateExercise, finishSession,
-  newSlot, saveProgram, startSession, updateSetLog, validateProgram,
+  newSlot, saveProgram, startSession, switchProgression, updateSetLog, validateProgram,
 } from './ops';
-import { getActiveProgram, getArchivedPrograms, getExerciseHistory, getInProgressSession, getLastCompletedSets, getSessionLogs } from './queries';
+import { getActiveProgram, getArchivedPrograms, getExerciseHistory, getExercisesWithHistory, getInProgressSession, getLastCompletedSets, getSessionLogs } from './queries';
 import { buildBackup, importBackup, parseBackup } from './backup';
 import { buildPlan } from '../state/plan';
 import type { Program } from '../model/types';
@@ -321,5 +321,43 @@ describe('backup compat', () => {
     const plan = await buildPlan(active, 0, other);
     expect(plan[0].suggestion.load).toBe(230);
     expect(plan[1].suggestion).toMatchObject({ load: null, reason: 'first-session' });
+  });
+});
+
+describe('slot mode switch', () => {
+  it('carries the visible number across: Fixed 5 → Range 5–7, Range 6–8 → Fixed 6, and back', () => {
+    const fixed = newSlot(squatId, { progression: 'single', targetReps: 5 });
+    const range = switchProgression(fixed, 'double');
+    expect(range).toMatchObject({ progression: 'double', repMin: 5, repMax: 7 });
+    const typed = { ...range, repMin: 6, repMax: 8 };
+    const back = switchProgression(typed, 'single');
+    expect(back).toMatchObject({ progression: 'single', targetReps: 6 });
+    expect(switchProgression(back, 'double')).toMatchObject({ progression: 'double', repMin: 6, repMax: 8 });
+    expect(switchProgression({ ...back, targetReps: 10 }, 'double')).toMatchObject({ repMin: 10, repMax: 12 });
+    expect(switchProgression(fixed, 'single')).toBe(fixed);
+  });
+});
+
+describe('skipped slots and legacy fields', () => {
+  it('a skipped slot\u2019s rows are deleted at finish even if a load was typed, and it stays out of History', async () => {
+    const plan = await buildPlan(program, 0, d);
+    const session = await startSession(program, 0, plan, d);
+    const logs = await getSessionLogs(session.id, d);
+    for (const l of logs.filter((x) => x.exerciseId === squatId)) await updateSetLog(l.id, { load: 225, reps: 5, rpe: l.setNumber === 1 ? 7 : undefined }, d);
+    const bench1 = logs.find((x) => x.exerciseId === benchId && x.setNumber === 1)!;
+    await updateSetLog(bench1.id, { load: 135 }, d); // typed a load, never logged reps
+    expect(checkFinish(session, await getSessionLogs(session.id, d)).skipped).toEqual(['Bench Press']);
+    await finishSession(session.id, d);
+    expect(await d.setLogs.count()).toBe(3);
+    expect((await buildPlan((await getActiveProgram(d))!, 0, d))[1].suggestion).toMatchObject({ load: null, reason: 'first-session' });
+    expect((await getExercisesWithHistory(d)).map((e) => e.name)).toEqual(['Squat']);
+  });
+
+  it('saveProgram drops a legacy startingLoad left on a slot by an older build', async () => {
+    const prog = (await getActiveProgram(d))!;
+    const legacy = { ...prog, days: prog.days.map((day) => ({ ...day, slots: day.slots.map((s) => ({ ...s, startingLoad: 999 })) })) } as Program;
+    await saveProgram(legacy, d);
+    const saved = (await getActiveProgram(d))!;
+    expect(saved.days.flatMap((day) => day.slots).some((s) => 'startingLoad' in s)).toBe(false);
   });
 });

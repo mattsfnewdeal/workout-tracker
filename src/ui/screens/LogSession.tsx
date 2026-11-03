@@ -1,7 +1,8 @@
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { isOutsideWorkingRange, reasonText } from '../../engine';
 import { abandonSession, checkFinish, finishSession, type SetLogPatch } from '../../db/ops';
 import type { PlannedSlot, SetLog } from '../../model/types';
+import { copyDownTargets } from '../../state/copyDown';
 import { useActiveSession } from '../../state/useActiveSession';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { NumberField } from '../components/NumberField';
@@ -117,14 +118,15 @@ function SlotLog({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[]; up
   const beat = s.repTarget.kind === 'range' ? s.repTarget.beat : null;
   const rows = [...logs].sort((a, b) => a.setNumber - b.setNumber);
 
-  /** Changing set 1's load also moves later sets that still sit at the old value. */
+  /** The load the linked later sets currently share: the prefilled suggestion, or whatever set 1 last pushed to them. */
+  const basis = useRef<number | null>(rows.find((r) => r.setNumber === 1)?.load ?? null);
+
+  /** Typing set 1's load fills the later sets that still match the basis; clearing set 1 never clears them. */
   function onLoad(log: SetLog, v: number | undefined) {
     update(log.id, { load: v });
-    if (log.setNumber === 1 && v != null) {
-      for (const other of rows) {
-        if (other.id !== log.id && (other.load ?? null) === (log.load ?? null)) update(other.id, { load: v });
-      }
-    }
+    if (log.setNumber !== 1 || v == null) return;
+    for (const id of copyDownTargets(rows, log, basis.current, v)) update(id, { load: v });
+    basis.current = v;
   }
 
   return (
@@ -134,7 +136,7 @@ function SlotLog({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[]; up
         <span class="muted small">{slot.sets} × {fmtRepTarget(s.repTarget)} @ {s.targetRpe}</span>
       </div>
       <div class="row gap wrap small">
-        <span class="muted">{s.load == null ? 'First session \u2014 type set 1\u2019s load; it fills the rest' : `Suggested ${fmtLoad(s.load)} \u00b7 ${reasonText(s.reason)}`}</span>
+        <span class="muted">{s.load == null ? 'First session — type set 1’s load; it fills the rest' : `Suggested ${fmtLoad(s.load)} · ${reasonText(s.reason)}`}</span>
         {beat != null && <span class="badge">beat {beat}</span>}
         {s.confidence === 'low' && <span class="badge badge-warn">low confidence</span>}
         {s.bigJump && <span class="badge badge-warn">big jump</span>}

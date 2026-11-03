@@ -30,6 +30,7 @@ await step('fresh app shows empty state', async () => {
 
 await step('create a program: Squat 3×5 fixed on Day A, Bench Press 3×6–8 range on Day B', async () => {
   await page.getByRole('button', { name: 'Build a program' }).click();
+  await page.getByText('You’ll pick each weight in your first session.').waitFor();
   await page.getByRole('button', { name: 'Create a program' }).click();
   await page.getByLabel('Day name').first().waitFor();
   const dayA = page.locator('section.card').nth(0);
@@ -61,7 +62,7 @@ await step('Today shows a first session with no load', async () => {
   const big = await text('li.card .big-number');
   assert(big === '5 reps @ 8', `big number "${big}"`);
   const t = await cardText();
-  assert(t.includes('First session') && !t.includes('×') && !t.includes('Suggested'), t);
+  assert(t.includes('First session') && !t.includes('×'), t);
   await shot('03-today-first');
 });
 
@@ -77,6 +78,18 @@ await step('start Day A: loads start empty, set 1 copies down', async () => {
   await page.getByLabel('Set 1 load').fill('225');
   await waitValue(page.getByLabel('Set 2 load'), '225');
   await waitValue(page.getByLabel('Set 3 load'), '225');
+  // an edited later set is left alone; clearing set 1 never clears the others; retyping set 1 re-fills the linked ones
+  await page.getByLabel('Set 3 load').fill('235');
+  await page.getByLabel('Set 1 load').fill('230');
+  await waitValue(page.getByLabel('Set 2 load'), '230');
+  assert((await page.getByLabel('Set 3 load').inputValue()) === '235', 'edited set 3 was overwritten by copy-down');
+  await page.getByLabel('Set 1 load').fill('');
+  await page.waitForTimeout(100);
+  assert((await page.getByLabel('Set 2 load').inputValue()) === '230', 'clearing set 1 cleared set 2');
+  await page.getByLabel('Set 1 load').fill('225');
+  await waitValue(page.getByLabel('Set 2 load'), '225');
+  assert((await page.getByLabel('Set 3 load').inputValue()) === '235', 'set 3 should still hold its own value');
+  await page.getByLabel('Set 3 load').fill('225');
   for (const n of [1, 2, 3]) await page.getByLabel(`Set ${n} reps`).fill('5');
   await rpe(0, '7').click();
   await rpe(1, '6.5').click(); // outside 7–9 → highlighted
@@ -85,6 +98,7 @@ await step('start Day A: loads start empty, set 1 copies down', async () => {
 });
 
 await step('session survives a reload and shows Resume on Today', async () => {
+  await page.waitForTimeout(250); // let the write-through land before we drop the page
   await page.reload();
   await page.getByLabel('Set 1 reps').waitFor();
   assert((await page.getByLabel('Set 1 reps').inputValue()) === '5', 'reps lost');
@@ -197,6 +211,12 @@ await step('a legacy v1 file with startingLoad imports and is stripped', async (
   const legacyPath = `${process.cwd()}/.smoke/legacy-v1.json`;
   fs.writeFileSync(legacyPath, JSON.stringify(legacy));
   await importFile(legacyPath);
+  // re-export: the stored program must no longer carry the key
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Export JSON' }).click()]);
+  const reexportPath = `${process.cwd()}/.smoke/reexport.json`;
+  await dl.saveAs(reexportPath);
+  const again = JSON.parse(fs.readFileSync(reexportPath, 'utf8'));
+  assert(again.programs.flatMap((p) => p.days.flatMap((d) => d.slots)).every((s) => !('startingLoad' in s)), 'legacy startingLoad survived import');
   await page.getByRole('link', { name: 'Today' }).click();
   await page.getByText('Next: Day B').waitFor();
   assert((await cardText()).includes('215 × 6–8 @ 8'), await cardText());

@@ -84,11 +84,11 @@ export async function getExerciseHistory(exerciseId: string, d: WorkoutDB = db):
   });
 }
 
-/** Exercises that have at least one completed set, alphabetical. */
+/** Exercises with at least one logged set in a completed session, alphabetical. A slot skipped in its only session doesn't count. */
 export async function getExercisesWithHistory(d: WorkoutDB = db): Promise<Exercise[]> {
+  const completed = new Set((await d.sessions.where('completed').equals(1).toArray()).map((s) => s.id));
   const ids = new Set<string>();
-  const sessions = await d.sessions.where('completed').equals(1).toArray();
-  for (const s of sessions) for (const p of s.plan) ids.add(p.exerciseId);
+  for (const l of await d.setLogs.toArray()) if (completed.has(l.sessionId) && isLoggedRow(l)) ids.add(l.exerciseId);
   const exercises = (await d.exercises.bulkGet([...ids])).filter((e): e is Exercise => e != null);
   return exercises.sort((a, b) => a.name.localeCompare(b.name));
 }

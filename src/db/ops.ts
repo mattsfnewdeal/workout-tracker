@@ -51,6 +51,30 @@ export function newSlot(exerciseId: string, partial: Partial<Slot> = {}): Slot {
   };
 }
 
+/** Switch a slot between fixed reps and a rep range, carrying the visible number across: Fixed 5 → Range 5–7, Range 6–8 → Fixed 6. */
+export function switchProgression(slot: Slot, progression: Slot['progression']): Slot {
+  if (progression === slot.progression) return slot;
+  if (progression === 'single') return { ...slot, progression, targetReps: slot.repMin ?? slot.targetReps ?? 5 };
+  const repMin = slot.targetReps ?? slot.repMin ?? 6;
+  const repMax = slot.repMax != null && slot.repMax > repMin ? slot.repMax : repMin + 2;
+  return { ...slot, progression, repMin, repMax };
+}
+
+/** Drop fields older builds stored on slots (v1.1 startingLoad) so they don't outlive the file or device they came from. */
+export function stripLegacySlotFields(program: Program): Program {
+  return {
+    ...program,
+    days: program.days.map((day) => ({
+      ...day,
+      slots: day.slots.map((s) => {
+        const copy = { ...s } as Slot & { startingLoad?: number };
+        delete copy.startingLoad;
+        return copy as Slot;
+      }),
+    })),
+  };
+}
+
 export function emptyProgram(name = 'My program'): Program {
   return {
     id: newId(),
@@ -88,7 +112,7 @@ export function validateProgram(p: Program): void {
 export async function saveProgram(program: Program, d: WorkoutDB = db): Promise<void> {
   validateProgram(program);
   const next = program.days.length ? program.nextDayIndex % program.days.length : 0;
-  await d.programs.put({ ...program, name: normalizeName(program.name), nextDayIndex: next });
+  await d.programs.put(stripLegacySlotFields({ ...program, name: normalizeName(program.name), nextDayIndex: next }));
 }
 
 /** Make `program` the active one, archiving whatever was active. Blocked while a session is in progress. */
@@ -101,7 +125,7 @@ export async function createProgram(program: Program, d: WorkoutDB = db): Promis
     for (const p of active) {
       if (p.id !== program.id) await d.programs.update(p.id, { status: 'archived', archivedAt: now });
     }
-    await d.programs.put({ ...program, name: normalizeName(program.name), status: 'active', archivedAt: undefined });
+    await d.programs.put(stripLegacySlotFields({ ...program, name: normalizeName(program.name), status: 'active', archivedAt: undefined }));
   });
 }
 

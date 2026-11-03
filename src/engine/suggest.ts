@@ -14,7 +14,7 @@ export function suggest(p: SlotParams, last: LoggedSet[] | null | undefined): Su
 
 export function reasonText(reason: SuggestionReason): string {
   switch (reason) {
-    case 'first-session': return 'First session \u2014 log the weight you use';
+    case 'first-session': return 'First session — log the weight you use';
     case 'double-progress': return 'Beat the top of the range — load up';
     case 'double-hold-add-reps': return 'Same load — beat last time’s reps';
     case 'double-rpe-high': return 'RPE too high — recalculated';

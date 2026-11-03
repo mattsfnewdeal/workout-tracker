@@ -1,5 +1,6 @@
 import type { Exercise, MetaRow, Program, Session, SetLog } from '../model/types';
 import { db, type WorkoutDB } from './db';
+import { stripLegacySlotFields } from './ops';
 
 export const BACKUP_APP = 'workout-tracker';
 export const SCHEMA_VERSION = 1;
@@ -59,7 +60,7 @@ export function backupCounts(b: Backup) {
 /** Replace everything with the backup's contents. */
 export async function importBackup(b: Backup, d: WorkoutDB = db): Promise<void> {
   // v1 files carried a per-slot starting load; the field is gone and the value is ignored.
-  for (const p of b.programs) for (const day of p.days) for (const s of day.slots) delete (s as { startingLoad?: number }).startingLoad;
+  b.programs = b.programs.map(stripLegacySlotFields);
   await d.transaction('rw', d.exercises, d.programs, d.sessions, d.setLogs, d.meta, async () => {
     await Promise.all([d.exercises.clear(), d.programs.clear(), d.sessions.clear(), d.setLogs.clear(), d.meta.clear()]);
     await d.exercises.bulkAdd(b.exercises);
