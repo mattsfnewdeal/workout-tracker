@@ -6,8 +6,9 @@ export function toLoggedSet(l: SetLog): LoggedSet {
   return { setNumber: l.setNumber, load: l.load, reps: l.reps ?? 0, rpe: l.rpe ?? null };
 }
 
-export function getActiveProgram(d: WorkoutDB = db): Promise<Program | undefined> {
-  return d.programs.where('status').equals('active').first();
+/** `null` when there is no active program (so hooks can tell "none" from "loading"). */
+export async function getActiveProgram(d: WorkoutDB = db): Promise<Program | null> {
+  return (await d.programs.where('status').equals('active').first()) ?? null;
 }
 
 export async function getArchivedPrograms(d: WorkoutDB = db): Promise<Program[]> {
@@ -15,8 +16,8 @@ export async function getArchivedPrograms(d: WorkoutDB = db): Promise<Program[]>
   return rows.sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0));
 }
 
-export function getInProgressSession(d: WorkoutDB = db): Promise<Session | undefined> {
-  return d.sessions.where('completed').equals(0).first();
+export async function getInProgressSession(d: WorkoutDB = db): Promise<Session | null> {
+  return (await d.sessions.where('completed').equals(0).first()) ?? null;
 }
 
 export function getSessionLogs(sessionId: string, d: WorkoutDB = db): Promise<SetLog[]> {

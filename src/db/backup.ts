@@ -74,8 +74,8 @@ export async function markBackedUp(when = Date.now(), d: WorkoutDB = db): Promis
   await d.meta.put({ key: 'lastBackupAt', value: when });
 }
 
-export async function getLastBackupAt(d: WorkoutDB = db): Promise<number | undefined> {
-  return (await d.meta.get('lastBackupAt'))?.value;
+export async function getLastBackupAt(d: WorkoutDB = db): Promise<number | null> {
+  return (await d.meta.get('lastBackupAt'))?.value ?? null;
 }
 
 /**

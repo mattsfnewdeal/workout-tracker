@@ -103,7 +103,7 @@ describe('finish / abandon / pointer', () => {
     let prog = (await getActiveProgram(d))!;
     expect(prog.nextDayIndex).toBe(1);
     expect(await d.setLogs.count()).toBe(3);
-    expect(await getInProgressSession(d)).toBeUndefined();
+    expect(await getInProgressSession(d)).toBeNull();
 
     const plan = await buildPlan(prog, 1, d);
     const s = await startSession(prog, 1, plan, d);
@@ -113,7 +113,7 @@ describe('finish / abandon / pointer', () => {
     prog = (await getActiveProgram(d))!;
     expect(prog.nextDayIndex).toBe(1);
     expect(await d.setLogs.count()).toBe(3);
-    expect(await getInProgressSession(d)).toBeUndefined();
+    expect(await getInProgressSession(d)).toBeNull();
   });
 
   it('wraps the pointer back to day A', async () => {
