@@ -19,6 +19,7 @@ npm test           # vitest: engine + data layer (fake-indexeddb)
 npm run build      # tsc --noEmit && vite build → dist/
 npm run preview    # serve dist/ at http://localhost:4173/workout-tracker/
 npm run icons      # regenerate public/*.png from public/icon.svg
+npm run smoke      # browser smoke test of the full flow against `npm run preview` (uses the installed Chrome; CHROME_PATH / BASE_URL to override)
 ```
 
 Layout: `src/engine` (pure progression math, fully unit-tested), `src/db` (Dexie schema, queries, session transactions, backup), `src/state` (plan builder, in-progress session hook), `src/ui` (Preact screens, hash router).

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "icons": "pwa-assets-generator --preset minimal-2023 public/icon.svg"
+    "icons": "pwa-assets-generator --preset minimal-2023 public/icon.svg",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "dexie": "^4.4.7",
@@ -20,6 +21,7 @@
     "@preact/preset-vite": "^2.10.6",
     "@vite-pwa/assets-generator": "^2.0.0",
     "fake-indexeddb": "^6.2.7",
+    "playwright-core": "^1.64.1",
     "typescript": "^5.9.3",
     "vite": "^8.3.5",
     "vite-plugin-pwa": "^2.0.0",

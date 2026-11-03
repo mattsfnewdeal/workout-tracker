@@ -4,3 +4,4 @@ dev-dist
 .sf/
 .DS_Store
 *.log
+.smoke/
