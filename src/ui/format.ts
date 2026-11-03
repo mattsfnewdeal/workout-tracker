@@ -14,9 +14,10 @@ export function fmtRepTarget(t: RepTarget): string {
   return `${t.min}–${t.max}`;
 }
 
-/** "225 × 5 @ 8" or "185 × 6–8 @ 8". */
+/** "225 × 5 @ 8" / "185 × 6–8 @ 8", or "5 reps @ 8" / "6–8 reps @ 8" on a first session (no load yet). */
 export function fmtSuggestion(s: Suggestion): string {
-  return `${fmtLoad(s.load)} × ${fmtRepTarget(s.repTarget)} @ ${s.targetRpe}`;
+  const reps = fmtRepTarget(s.repTarget);
+  return s.load == null ? `${reps} reps @ ${s.targetRpe}` : `${fmtLoad(s.load)} \u00d7 ${reps} @ ${s.targetRpe}`;
 }
 
 export function fmtDate(ts?: number): string {

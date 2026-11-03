@@ -1,6 +1,6 @@
 export type SlotParams =
-  | { progression: 'single'; targetReps: number; targetRpe: number; startingLoad: number; increment: number }
-  | { progression: 'double'; repMin: number; repMax: number; targetRpe: number; startingLoad: number; increment: number };
+  | { progression: 'single'; targetReps: number; targetRpe: number; increment: number }
+  | { progression: 'double'; repMin: number; repMax: number; targetRpe: number; increment: number };
 
 export type SingleParams = Extract<SlotParams, { progression: 'single' }>;
 export type DoubleParams = Extract<SlotParams, { progression: 'double' }>;
@@ -29,7 +29,8 @@ export type SuggestionReason =
   | 'fallback-hold';
 
 export interface Suggestion {
-  load: number;
+  /** null on the first session: there is no history, the lifter picks the load. */
+  load: number | null;
   repTarget: RepTarget;
   targetRpe: number;
   confidence: 'normal' | 'low';

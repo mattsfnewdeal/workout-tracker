@@ -58,6 +58,8 @@ export function backupCounts(b: Backup) {
 
 /** Replace everything with the backup's contents. */
 export async function importBackup(b: Backup, d: WorkoutDB = db): Promise<void> {
+  // v1 files carried a per-slot starting load; the field is gone and the value is ignored.
+  for (const p of b.programs) for (const day of p.days) for (const s of day.slots) delete (s as { startingLoad?: number }).startingLoad;
   await d.transaction('rw', d.exercises, d.programs, d.sessions, d.setLogs, d.meta, async () => {
     await Promise.all([d.exercises.clear(), d.programs.clear(), d.sessions.clear(), d.setLogs.clear(), d.meta.clear()]);
     await d.exercises.bulkAdd(b.exercises);

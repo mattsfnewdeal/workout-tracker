@@ -22,8 +22,6 @@ export interface Slot {
   repMax?: number;
   /** 6.5–10 in half steps. Default 8. */
   targetRpe: number;
-  /** Used until the exercise has a completed session. */
-  startingLoad: number;
 }
 
 export interface Day {
@@ -76,10 +74,11 @@ export interface SetLog {
   slotId: string;
   exerciseId: string;
   setNumber: number;
-  load: number;
+  /** Absent (key deleted, never null) on a first session until the lifter types it; readers compare with == null. */
+  load?: number;
   reps?: number;
   rpe?: number;
-  suggestedLoad: number;
+  suggestedLoad?: number;
 }
 
 export interface MetaRow {

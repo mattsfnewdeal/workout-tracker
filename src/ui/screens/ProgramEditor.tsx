@@ -102,7 +102,7 @@ export function ProgramEditor() {
 
       {!draft ? (
         <div class="empty">
-          <p>No program yet. Build your weekly cycle: days, then exercises with sets, reps and an RPE goal.</p>
+          <p>No program yet. Build your weekly cycle: days, then exercises with sets, reps and an RPE goal. You\u2019ll pick each weight in your first session.</p>
           <button type="button" class="btn btn-primary btn-big" onClick={startNew}>Create a program</button>
         </div>
       ) : (
@@ -278,9 +278,21 @@ interface SlotProps {
   onDelete: () => void;
 }
 
+const MODES: { value: Slot['progression']; label: string; hint: string }[] = [
+  { value: 'single', label: 'Fixed reps', hint: 'Load goes up once every set hits the target.' },
+  { value: 'double', label: 'Rep range', hint: 'Same load until set 1 beats the top of the range, then load goes up.' },
+];
+
 function SlotEditor({ slot, exercise, index, count, onChange, onMove, onDelete }: SlotProps) {
   const keyReps = slot.progression === 'single' ? slot.targetReps : slot.repMin;
   const offChart = keyReps != null && keyReps + (10 - slot.targetRpe) > MAX_EFFECTIVE_REPS;
+  const mode = MODES.find((m) => m.value === slot.progression) ?? MODES[0];
+
+  /** Switching keeps the numbers already typed: Fixed 5 → Range 5–7, Range 6–8 → Fixed 6. */
+  const setMode = (progression: Slot['progression']) =>
+    onChange(progression === 'single'
+      ? { ...slot, progression, targetReps: slot.targetReps ?? slot.repMin ?? 5 }
+      : { ...slot, progression, repMin: slot.repMin ?? slot.targetReps ?? 6, repMax: slot.repMax ?? (slot.targetReps ?? 6) + 2 });
 
   return (
     <div class="card" style="margin-top:10px; background: var(--bg)">
@@ -290,36 +302,39 @@ function SlotEditor({ slot, exercise, index, count, onChange, onMove, onDelete }
         <button type="button" class="btn btn-small btn-icon" disabled={index === count - 1} onClick={() => onMove(1)} aria-label="Move down">↓</button>
         <button type="button" class="btn btn-small btn-icon" onClick={onDelete} aria-label="Remove">✕</button>
       </div>
+      <div class="row gap" role="radiogroup" aria-label="Reps" style="margin-top:8px">
+        {MODES.map((m) => (
+          <button
+            type="button"
+            key={m.value}
+            role="radio"
+            aria-checked={slot.progression === m.value}
+            class={`btn grow ${slot.progression === m.value ? 'btn-primary' : ''}`}
+            onClick={() => setMode(m.value)}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <p class="muted small" style="margin:6px 0 0">{mode.hint}</p>
       <div class="row gap" style="margin-top:8px">
         <label class="field grow">
           Sets
           <NumberField value={slot.sets} onChange={(v) => onChange({ ...slot, sets: v ?? 1 })} mode="numeric" min={1} />
         </label>
-        <label class="field grow">
-          Reps
-          <select value={slot.progression} onChange={(e) => {
-            const progression = e.currentTarget.value as Slot['progression'];
-            onChange(progression === 'single'
-              ? { ...slot, progression, targetReps: slot.targetReps ?? slot.repMin ?? 5 }
-              : { ...slot, progression, repMin: slot.repMin ?? slot.targetReps ?? 6, repMax: slot.repMax ?? (slot.targetReps ?? 6) + 2 });
-          }}>
-            <option value="single">Fixed</option>
-            <option value="double">Range</option>
-          </select>
-        </label>
         {slot.progression === 'single' ? (
           <label class="field grow">
-            Target
+            Target reps
             <NumberField value={slot.targetReps} onChange={(v) => onChange({ ...slot, targetReps: v })} mode="numeric" min={1} />
           </label>
         ) : (
           <>
             <label class="field grow">
-              Min
+              Min reps
               <NumberField value={slot.repMin} onChange={(v) => onChange({ ...slot, repMin: v })} mode="numeric" min={1} />
             </label>
             <label class="field grow">
-              Max
+              Max reps
               <NumberField value={slot.repMax} onChange={(v) => onChange({ ...slot, repMax: v })} mode="numeric" min={1} />
             </label>
           </>
@@ -330,10 +345,6 @@ function SlotEditor({ slot, exercise, index, count, onChange, onMove, onDelete }
         <RpePicker compact value={slot.targetRpe} onChange={(v) => onChange({ ...slot, targetRpe: v ?? DEFAULT_TARGET_RPE })} label="RPE goal" />
       </label>
       <div class="row gap" style="margin-top:8px">
-        <label class="field grow">
-          Starting load (lb)
-          <NumberField value={slot.startingLoad} onChange={(v) => onChange({ ...slot, startingLoad: v ?? 0 })} mode="decimal" min={0} />
-        </label>
         <label class="field grow">
           Increment (lb)
           <NumberField

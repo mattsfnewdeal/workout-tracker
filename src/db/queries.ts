@@ -2,8 +2,15 @@ import { e1rm, type LoggedSet } from '../engine';
 import type { Exercise, Program, Session, SetLog } from '../model/types';
 import { db, type WorkoutDB } from './db';
 
-export function toLoggedSet(l: SetLog): LoggedSet {
-  return { setNumber: l.setNumber, load: l.load, reps: l.reps ?? 0, rpe: l.rpe ?? null };
+type LoggedSetLog = SetLog & { load: number; reps: number };
+
+/** A row that counts: it has reps and a real load. Anything else never reaches the engine or History. */
+export function isLoggedRow(l: SetLog): l is LoggedSetLog {
+  return l.reps != null && l.load != null && l.load > 0;
+}
+
+export function toLoggedSet(l: LoggedSetLog): LoggedSet {
+  return { setNumber: l.setNumber, load: l.load, reps: l.reps, rpe: l.rpe ?? null };
 }
 
 /** `null` when there is no active program (so hooks can tell "none" from "loading"). */
@@ -43,7 +50,7 @@ export async function getLastCompletedSets(exerciseId: string, d: WorkoutDB = db
   if (sessions.length === 0) return null;
   const latest = sessions.reduce((a, b) => ((b.finishedAt ?? 0) > (a.finishedAt ?? 0) ? b : a));
   const sets = logs
-    .filter((l) => l.sessionId === latest.id && l.reps != null)
+    .filter((l): l is LoggedSetLog => l.sessionId === latest.id && isLoggedRow(l))
     .sort((a, b) => a.setNumber - b.setNumber)
     .map(toLoggedSet);
   return sets.length ? { session: latest, sets } : null;
@@ -59,9 +66,9 @@ export interface HistoryEntry {
 /** Completed sessions containing the exercise, newest first. */
 export async function getExerciseHistory(exerciseId: string, d: WorkoutDB = db): Promise<HistoryEntry[]> {
   const logs = await d.setLogs.where('exerciseId').equals(exerciseId).toArray();
-  const bySession = new Map<string, SetLog[]>();
+  const bySession = new Map<string, LoggedSetLog[]>();
   for (const l of logs) {
-    if (l.reps == null) continue;
+    if (!isLoggedRow(l)) continue;
     const arr = bySession.get(l.sessionId) ?? [];
     arr.push(l);
     bySession.set(l.sessionId, arr);

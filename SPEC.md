@@ -241,3 +241,38 @@ These supersede the matching v1 sections above.
    - The same exercise can't appear twice in one day.
    - A session snapshots its plan at Start. Editing the active program mid-session is allowed; the pointer advance uses `(session.dayIndex + 1) % days.length` against the live program.
 8. **RTS table verified** (2026-11-03) against two independent reproductions of the Tuchscherer/RTS chart; all 30 values match. The engine's tests include a full 12-rep × 8-RPE grid check.
+
+---
+
+## v1.2 amendments (2026-11-03)
+
+These supersede the matching v1 and v1.1 sections above: the Data model's `Slot.startingLoad` line and `SetLog` block, the first sentence of "Fallback (no usable e1RM)", Screens items 2–3, and v1.1 amendment 5. Every worked example and asserted number above is unchanged.
+
+1. **No starting load.** `Slot.startingLoad` is removed from the data model, the program builder, and the engine's slot parameters (not kept as an optional field). A slot has no load of its own; loads come only from logged sets. There is no load field anywhere in the builder.
+
+2. **First session.** An exercise with no completed session anywhere (any day, any program, including archived ones) is a *first session*. The engine returns `{ load: null, repTarget, targetRpe, confidence: 'normal', bigJump: false, reason: 'first-session', e1rm: null, basis: null }`. "First session" is decided per **exercise**, never per slot: a shared exercise logged on Day A is not a first session on Day B, and a new program that reuses an exercise picks up its history. Today shows the rep target only — "5 reps @ 8" or "6–8 reps @ 8" — with "First session — log the weight you use" and no "Last set 1" line.
+
+3. **Logging a first session.** Starting a session pre-creates one row per set with **no `load` and no `suggestedLoad`** (both fields are optional and absent until there is a value). The load inputs open empty with an "lb" placeholder; the lifter types the weight they actually use. Typing set 1's load also fills every later set whose load still equals set 1's previous value — on a first session that is every empty set; a later set the lifter already edited is left alone, and clearing set 1 never clears the others. The log screen's suggestion line reads "First session — type set 1's load; it fills the rest". Finish still requires a load above 0 and reps on every logged set and an RPE on set 1: an empty load blocks with "<Exercise> set N: enter the load", a typed 0 with "<Exercise> set N: load must be above 0". A slot with no reps on any set is still "skipped" after the confirmation, its rows (typed loads included) are deleted, and it remains a first session. Abandoning deletes everything, so the next attempt is a first session again.
+
+4. **From the second session on, nothing changes.** Suggestions build from the logged sets exactly as in v1/v1.1: set 1's e1RM, the per-slot RPE goal, rounding to the exercise increment, the +1% floor, and the big-jump flag measured against set 1's logged load. A conservative first-session weight will often flag "big jump" on the second session (e.g. 185 × 9 @ 7 on a 6–8 slot → 215, +16%); that is the intended sanity check, not a bug. The fallback section's "first session (use startingLoad)" clause is gone: the fallback applies only when there is history but no usable e1RM. A completed session never contributes a row without a load: Finish enforces it, and the queries that feed the engine and History ignore any row that lacks one.
+
+5. **Rep scheme in the builder** (replaces v1.1 amendment 5). Each slot sets: exercise name (typed, with type-ahead reuse); a two-button toggle **Fixed reps / Rep range** (fixed → single progression, range → double progression) with a one-line hint of what the choice means; then Sets + Target reps, or Sets + Min reps + Max reps; RPE goal. The load increment stays per exercise (default 5 lb). Switching keeps the numbers already typed (Fixed 5 → Range 5–7; Range 6–8 → Fixed 6). A range needs Max above Min; equal or inverted values are rejected at save with "<Day>: rep range must be like 6–8".
+
+6. **Data model** (replaces the matching lines of the v1 block):
+```
+Slot
+  id, exerciseId, sets, targetRpe
+  progression: "single" | "double"
+  // single:  targetReps
+  // double:  repMin, repMax
+
+SetLog
+  id, sessionId, slotId, exerciseId, setNumber
+  load? (lb)        // absent on a first session until typed
+  reps?, rpe?       // rpe in 0.5 steps
+  suggestedLoad?    // absent on a first session
+```
+
+7. **Backups.** The backup `schemaVersion` and the Dexie schema version both stay at 1. A backup whose slots still carry `startingLoad` imports; the key is dropped on import and the value is ignored. Sessions and sets import unchanged.
+
+8. **Testing additions.** The engine asserts `load === null` for, and only for, the first session. The data-layer tests cover a range slot from an empty first session through the 185 × 9 @ 7 → 215 example and the hold branch (185 × 7 @ 8 → 185, beat 7), the first-session Finish messages, the absent-key convention, an abandoned and a skipped first session, a completed row without a load being ignored, Max-above-Min validation, and import of a v1 backup. The browser smoke test builds a program with a Fixed slot on Day A and a Range slot on Day B, logs both first sessions from empty inputs (checking copy-down from set 1), and asserts 230 × 5 @ 8 and 215 × 6–8 @ 8 with the big-jump badge, History e1RMs 286 and 272, export/reset/import, and import of a legacy file.

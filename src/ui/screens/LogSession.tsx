@@ -122,7 +122,7 @@ function SlotLog({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[]; up
     update(log.id, { load: v });
     if (log.setNumber === 1 && v != null) {
       for (const other of rows) {
-        if (other.id !== log.id && other.load === log.load) update(other.id, { load: v });
+        if (other.id !== log.id && (other.load ?? null) === (log.load ?? null)) update(other.id, { load: v });
       }
     }
   }
@@ -134,7 +134,7 @@ function SlotLog({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[]; up
         <span class="muted small">{slot.sets} × {fmtRepTarget(s.repTarget)} @ {s.targetRpe}</span>
       </div>
       <div class="row gap wrap small">
-        <span class="muted">Suggested {fmtLoad(s.load)} · {reasonText(s.reason)}</span>
+        <span class="muted">{s.load == null ? 'First session \u2014 type set 1\u2019s load; it fills the rest' : `Suggested ${fmtLoad(s.load)} \u00b7 ${reasonText(s.reason)}`}</span>
         {beat != null && <span class="badge">beat {beat}</span>}
         {s.confidence === 'low' && <span class="badge badge-warn">low confidence</span>}
         {s.bigJump && <span class="badge badge-warn">big jump</span>}
@@ -148,7 +148,7 @@ function SlotLog({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[]; up
       {rows.map((log) => (
         <div key={log.id} class={`set-row ${log.rpe != null && isOutsideWorkingRange(log.rpe) ? 'outside' : ''}`}>
           <span class="set-no">{log.setNumber}</span>
-          <NumberField value={log.load} onChange={(v) => onLoad(log, v)} mode="decimal" label={`Set ${log.setNumber} load`} min={0} />
+          <NumberField value={log.load} onChange={(v) => onLoad(log, v)} mode="decimal" label={`Set ${log.setNumber} load`} min={0} placeholder="lb" />
           <NumberField value={log.reps} onChange={(v) => update(log.id, { reps: v })} mode="numeric" label={`Set ${log.setNumber} reps`} min={0} placeholder="reps" />
           <div class="set-rpe">
             <RpePicker compact value={log.rpe} onChange={(v) => update(log.id, { rpe: v })} label={`Set ${log.setNumber} RPE`} />

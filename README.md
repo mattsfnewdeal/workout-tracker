@@ -6,7 +6,7 @@ Spec: [SPEC.md](SPEC.md). Live: https://mattsfnewdeal.github.io/workout-tracker/
 
 ## How it works
 
-- **Program**: one active program at a time, a repeating cycle of days (A/B by default). Each slot is an exercise with sets, fixed reps or a rep range, an RPE goal, and a starting load. Creating a new program archives the old one; history and progression carry over per exercise.
+- **Program**: one active program at a time, a repeating cycle of days (A/B by default). Each slot is an exercise with sets, fixed reps or a rep range, and an RPE goal. An exercise’s first session has no suggested load: you type the weight you use and progression builds from it. Creating a new program archives the old one; history and progression carry over per exercise.
 - **Suggestions**: set 1 of the exercise's most recent completed session gives an e1RM via the RTS/Tuchscherer chart (`%1RM` keyed by `reps + (10 − RPE)`). The next load lands the rep target at the RPE goal, rounded to the exercise's increment. Single progression needs every set clean and adds at least +1%; double progression moves up once set 1 beats the top of the range. Sets over 12 reps fall back to one-increment steps and are flagged low confidence. Details and worked examples in the spec.
 - **Storage**: IndexedDB (Dexie). Safari can evict it, so Settings has Export / Import JSON and shows the last backup date.
 

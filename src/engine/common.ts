@@ -29,7 +29,7 @@ export function repTargetFor(p: SlotParams, beat: number | null): RepTarget {
 
 export function firstSession(p: SlotParams): Suggestion {
   return {
-    load: p.startingLoad,
+    load: null,
     repTarget: repTargetFor(p, null),
     targetRpe: p.targetRpe,
     confidence: 'normal',

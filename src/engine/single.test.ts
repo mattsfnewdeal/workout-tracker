@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { suggestSingle } from './single';
 import type { LoggedSet, SingleParams } from './types';
 
-const p: SingleParams = { progression: 'single', targetReps: 5, targetRpe: 8, startingLoad: 135, increment: 5 };
+const p: SingleParams = { progression: 'single', targetReps: 5, targetRpe: 8, increment: 5 };
 const set = (load: number, reps: number, rpe: number | null, setNumber = 1): LoggedSet => ({ setNumber, load, reps, rpe });
 const triple = (load: number, rpe: number, r1 = 5, r2 = 5, r3 = 5) => [set(load, r1, rpe), set(load, r2, null, 2), set(load, r3, null, 3)];
 

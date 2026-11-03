@@ -4,7 +4,7 @@ import { db, type WorkoutDB } from '../db/db';
 import { getLastCompletedSets } from '../db/queries';
 
 export function toSlotParams(slot: Slot, exercise: Exercise): SlotParams {
-  const common = { targetRpe: slot.targetRpe, startingLoad: slot.startingLoad, increment: exercise.loadIncrement };
+  const common = { targetRpe: slot.targetRpe, increment: exercise.loadIncrement };
   return slot.progression === 'single'
     ? { progression: 'single', targetReps: slot.targetReps ?? 5, ...common }
     : { progression: 'double', repMin: slot.repMin ?? 6, repMax: slot.repMax ?? 8, ...common };

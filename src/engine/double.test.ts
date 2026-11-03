@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { suggestDouble } from './double';
 import type { DoubleParams, LoggedSet } from './types';
 
-const p: DoubleParams = { progression: 'double', repMin: 6, repMax: 8, targetRpe: 8, startingLoad: 135, increment: 5 };
+const p: DoubleParams = { progression: 'double', repMin: 6, repMax: 8, targetRpe: 8, increment: 5 };
 const set = (load: number, reps: number, rpe: number | null, setNumber = 1): LoggedSet => ({ setNumber, load, reps, rpe });
 
 describe('suggestDouble (6–8 @ goal 8, 5 lb)', () => {

@@ -47,7 +47,6 @@ export function newSlot(exerciseId: string, partial: Partial<Slot> = {}): Slot {
     progression: 'single',
     targetReps: 5,
     targetRpe: DEFAULT_TARGET_RPE,
-    startingLoad: 45,
     ...partial,
   };
 }
@@ -77,11 +76,10 @@ export function validateProgram(p: Program): void {
         if (!Number.isInteger(slot.targetReps) || (slot.targetReps ?? 0) < 1) throw new Error(`${day.name}: target reps must be at least 1`);
       } else {
         const { repMin, repMax } = slot;
-        if (!Number.isInteger(repMin) || !Number.isInteger(repMax) || (repMin ?? 0) < 1 || (repMax ?? 0) < (repMin ?? 0)) {
+        if (!Number.isInteger(repMin) || !Number.isInteger(repMax) || (repMin ?? 0) < 1 || (repMax ?? 0) <= (repMin ?? 0)) {
           throw new Error(`${day.name}: rep range must be like 6–8`);
         }
       }
-      if (!(slot.startingLoad >= 0)) throw new Error(`${day.name}: starting load is required`);
     }
   }
 }
@@ -107,7 +105,7 @@ export async function createProgram(program: Program, d: WorkoutDB = db): Promis
   });
 }
 
-/** Create the session and pre-create every set row with the suggested load. */
+/** Create the session and pre-create every set row, prefilled with the suggested load when there is one. */
 export async function startSession(program: Program, dayIndex: number, plan: PlannedSlot[], d: WorkoutDB = db): Promise<Session> {
   const day = program.days[dayIndex];
   if (!day) throw new Error('No such day');
@@ -124,15 +122,12 @@ export async function startSession(program: Program, dayIndex: number, plan: Pla
   const logs: SetLog[] = [];
   for (const slot of plan) {
     for (let n = 1; n <= slot.sets; n++) {
-      logs.push({
-        id: newId(),
-        sessionId: session.id,
-        slotId: slot.slotId,
-        exerciseId: slot.exerciseId,
-        setNumber: n,
-        load: slot.suggestion.load,
-        suggestedLoad: slot.suggestion.load,
-      });
+      const row: SetLog = { id: newId(), sessionId: session.id, slotId: slot.slotId, exerciseId: slot.exerciseId, setNumber: n };
+      if (slot.suggestion.load != null) {
+        row.load = slot.suggestion.load;
+        row.suggestedLoad = slot.suggestion.load;
+      }
+      logs.push(row);
     }
   }
   await d.transaction('rw', d.sessions, d.setLogs, async () => {
@@ -171,7 +166,8 @@ export function checkFinish(session: Session, logs: SetLog[]): FinishCheck {
     const set1 = rows.find((l) => l.setNumber === 1);
     if (set1 && set1.reps != null && set1.rpe == null) problems.push(`${slot.exerciseName}: set 1 needs an RPE`);
     for (const l of logged) {
-      if (!(l.load > 0)) problems.push(`${slot.exerciseName} set ${l.setNumber}: load must be above 0`);
+      if (l.load == null) problems.push(`${slot.exerciseName} set ${l.setNumber}: enter the load`);
+      else if (!(l.load > 0)) problems.push(`${slot.exerciseName} set ${l.setNumber}: load must be above 0`);
       if (!Number.isInteger(l.reps) || (l.reps ?? 0) < 0) problems.push(`${slot.exerciseName} set ${l.setNumber}: reps must be a whole number`);
     }
   }
