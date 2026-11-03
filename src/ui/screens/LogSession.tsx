@@ -1,7 +1,7 @@
 import { useRef, useState } from 'preact/hooks';
 import { isOutsideWorkingRange, reasonText } from '../../engine';
 import { abandonSession, checkFinish, finishSession, type SetLogPatch } from '../../db/ops';
-import type { PlannedSlot, SetLog } from '../../model/types';
+import type { PlannedSlot, SetLog, WarmupLog } from '../../model/types';
 import { copyDownTargets } from '../../state/copyDown';
 import { useActiveSession } from '../../state/useActiveSession';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -9,6 +9,11 @@ import { NumberField } from '../components/NumberField';
 import { RpePicker } from '../components/RpePicker';
 import { fmtDate, fmtLoad, fmtRepTarget, fmtRpe } from '../format';
 import { navigate } from '../router';
+
+function slotDone(slot: PlannedSlot, logs: SetLog[]): boolean {
+  const rows = logs.filter((l) => l.slotId === slot.slotId);
+  return rows.length > 0 && rows.every((l) => l.reps != null);
+}
 
 export function LogSession({ sessionId }: { sessionId: string }) {
   const { state, update, toggleWarmup, saveError } = useActiveSession(sessionId);
@@ -37,6 +42,8 @@ export function LogSession({ sessionId }: { sessionId: string }) {
     );
   }
 
+  const doneCount = session.plan.filter((s) => slotDone(s, logs)).length;
+
   async function doFinish() {
     setBusy(true);
     try {
@@ -63,41 +70,24 @@ export function LogSession({ sessionId }: { sessionId: string }) {
 
   return (
     <main class="screen no-tabs">
-      <div class="row between">
+      <header class="session-head">
         <div>
           <h1>{session.dayName}</h1>
-          <p class="muted small">Started {fmtDate(session.startedAt)}</p>
+          <p class="muted">{fmtDate(session.startedAt)} · {doneCount} of {session.plan.length} exercises logged</p>
         </div>
         <button type="button" class="btn btn-small btn-ghost" onClick={() => setConfirmAbandon(true)}>Abandon</button>
-      </div>
+      </header>
 
       <ul class="list">
-        {session.warmups && session.warmups.length > 0 && (
-          <li class="card">
-            <strong>Warm-up</strong>
-            <ul class="checklist">
-              {session.warmups.map((w) => (
-                <li key={w.id}>
-                  <label class="check">
-                    <input type="checkbox" checked={w.done} onChange={(e) => toggleWarmup(w.id, e.currentTarget.checked)} />
-                    <span class={w.done ? 'done' : ''}>
-                      {w.name}
-                      {w.note && <span class="muted small"> · {w.note}</span>}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </li>
-        )}
+        {session.warmups && session.warmups.length > 0 && <WarmupCard warmups={session.warmups} toggle={toggleWarmup} />}
         {session.plan.map((slot) => (
-          <SlotLog key={slot.slotId} slot={slot} logs={logs.filter((l) => l.slotId === slot.slotId)} update={update} />
+          <ExerciseCard key={slot.slotId} slot={slot} logs={logs.filter((l) => l.slotId === slot.slotId)} update={update} />
         ))}
       </ul>
 
       {saveError && <p class="error">{saveError}</p>}
       {problems.length > 0 && (
-        <ul class="error">
+        <ul class="error problems">
           {problems.map((p) => <li key={p}>{p}</li>)}
         </ul>
       )}
@@ -131,10 +121,61 @@ export function LogSession({ sessionId }: { sessionId: string }) {
   );
 }
 
-function SlotLog({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[]; update: (id: string, patch: SetLogPatch) => void }) {
+function CardHead({ title, pill, pillClass, expanded, onToggle }: { title: string; pill: string; pillClass?: string; expanded: boolean; onToggle: () => void }) {
+  return (
+    <div
+      class="card-head"
+      role="button"
+      tabIndex={0}
+      aria-expanded={expanded}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+    >
+      <span class="card-title">{title}</span>
+      <span class={`pill ${pillClass ?? ''}`}>{pill}</span>
+    </div>
+  );
+}
+
+function WarmupCard({ warmups, toggle }: { warmups: WarmupLog[]; toggle: (id: string, done: boolean) => void }) {
+  const done = warmups.filter((w) => w.done).length;
+  const allDone = done === warmups.length;
+  const [manual, setManual] = useState<boolean | null>(null);
+  const collapsed = manual ?? allDone;
+  return (
+    <li class={`card ${allDone ? 'is-done' : ''}`}>
+      <CardHead title="Warm-up" pill={allDone ? `${done}/${warmups.length} ✓` : `${done}/${warmups.length}`} pillClass={allDone ? 'pill-ok' : ''} expanded={!collapsed} onToggle={() => setManual(!collapsed)} />
+      {!collapsed && (
+        <ul class="checklist">
+          {warmups.map((w) => (
+            <li key={w.id}>
+              <label class="check">
+                <input type="checkbox" checked={w.done} onChange={(e) => toggle(w.id, e.currentTarget.checked)} />
+                <span class={w.done ? 'done' : ''}>
+                  {w.name}
+                  {w.note && <span class="muted small"> · {w.note}</span>}
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function ExerciseCard({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[]; update: (id: string, patch: SetLogPatch) => void }) {
   const s = slot.suggestion;
   const beat = s.repTarget.kind === 'range' ? s.repTarget.beat : null;
   const rows = [...logs].sort((a, b) => a.setNumber - b.setNumber);
+  const done = rows.length > 0 && rows.every((l) => l.reps != null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [openRpe, setOpenRpe] = useState<string | null>(null);
 
   /** The load the linked later sets currently share: the prefilled suggestion, or whatever set 1 last pushed to them. */
   const basis = useRef<number | null>(rows.find((r) => r.setNumber === 1)?.load ?? null);
@@ -147,34 +188,69 @@ function SlotLog({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[]; up
     basis.current = v;
   }
 
+  const summary = rows
+    .filter((l) => l.reps != null)
+    .map((l) => `${l.load != null ? fmtLoad(l.load) : '?'} × ${l.reps}${l.rpe != null ? ` @ ${l.rpe}` : ''}`)
+    .join(' · ');
+
   return (
-    <li class="card">
-      <div class="row between">
-        <strong>{slot.exerciseName}</strong>
-        <span class="muted small">{slot.sets} × {fmtRepTarget(s.repTarget)} @ {s.targetRpe}</span>
-      </div>
-      <div class="row gap wrap small">
-        <span class="muted">{s.load == null ? 'First session — type set 1’s load; it fills the rest' : `Suggested ${fmtLoad(s.load)} · ${reasonText(s.reason)}`}</span>
-        {beat != null && <span class="badge">beat {beat}</span>}
-        {s.confidence === 'low' && <span class="badge badge-warn">low confidence</span>}
-        {s.bigJump && <span class="badge badge-warn">big jump</span>}
-      </div>
-      {s.basis && (
-        <div class="small muted">
-          Last set 1: {fmtLoad(s.basis.load)} × {s.basis.reps} @ {fmtRpe(s.basis.rpe)}
-        </div>
+    <li class={`card ${done ? 'is-done' : ''}`}>
+      <CardHead
+        title={slot.exerciseName}
+        pill={`${slot.sets} × ${fmtRepTarget(s.repTarget)} @ ${s.targetRpe}${done ? ' ✓' : ''}`}
+        pillClass={done ? 'pill-ok' : ''}
+        expanded={!collapsed}
+        onToggle={() => setCollapsed(!collapsed)}
+      />
+      {collapsed ? (
+        <p class="summary muted">{summary || 'Not logged yet'}</p>
+      ) : (
+        <>
+          <p class="hint muted">
+            {s.load == null ? 'First session — type set 1’s load; it fills the rest' : `Suggested ${fmtLoad(s.load)} · ${reasonText(s.reason)}`}
+            {beat != null && <span class="badge"> beat {beat}</span>}
+            {s.confidence === 'low' && <span class="badge badge-warn">low confidence</span>}
+            {s.bigJump && <span class="badge badge-warn">big jump</span>}
+          </p>
+          {s.basis && (
+            <p class="hint muted">Last set 1: {fmtLoad(s.basis.load)} × {s.basis.reps} @ {fmtRpe(s.basis.rpe)}</p>
+          )}
+          <div class="set-head"><span>Set</span><span>Load (lb)</span><span>Reps</span><span>RPE</span></div>
+          {rows.map((log) => {
+            const outside = log.rpe != null && isOutsideWorkingRange(log.rpe);
+            const open = openRpe === log.id;
+            return (
+              <div key={log.id} class={`set-row ${outside ? 'outside' : ''}`}>
+                <span class="set-no">{log.setNumber}</span>
+                <NumberField value={log.load} onChange={(v) => onLoad(log, v)} mode="decimal" label={`Set ${log.setNumber} load`} min={0} placeholder="lb" />
+                <NumberField value={log.reps} onChange={(v) => update(log.id, { reps: v })} mode="numeric" label={`Set ${log.setNumber} reps`} min={0} placeholder="reps" />
+                <button
+                  type="button"
+                  class={`rpe-chip ${log.rpe == null ? 'is-empty' : ''} ${outside ? 'outside' : ''} ${open ? 'open' : ''}`}
+                  aria-label={`Set ${log.setNumber} RPE`}
+                  aria-expanded={open}
+                  onClick={() => setOpenRpe(open ? null : log.id)}
+                >
+                  {log.rpe == null ? 'RPE' : log.rpe}
+                </button>
+                {open && (
+                  <div class="set-rpe">
+                    <RpePicker
+                      compact
+                      value={log.rpe}
+                      onChange={(v) => {
+                        update(log.id, { rpe: v });
+                        setOpenRpe(null);
+                      }}
+                      label={`Set ${log.setNumber} RPE picker`}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </>
       )}
-      <div class="set-head"><span>#</span><span>Load (lb)</span><span>Reps</span></div>
-      {rows.map((log) => (
-        <div key={log.id} class={`set-row ${log.rpe != null && isOutsideWorkingRange(log.rpe) ? 'outside' : ''}`}>
-          <span class="set-no">{log.setNumber}</span>
-          <NumberField value={log.load} onChange={(v) => onLoad(log, v)} mode="decimal" label={`Set ${log.setNumber} load`} min={0} placeholder="lb" />
-          <NumberField value={log.reps} onChange={(v) => update(log.id, { reps: v })} mode="numeric" label={`Set ${log.setNumber} reps`} min={0} placeholder="reps" />
-          <div class="set-rpe">
-            <RpePicker compact value={log.rpe} onChange={(v) => update(log.id, { rpe: v })} label={`Set ${log.setNumber} RPE`} />
-          </div>
-        </div>
-      ))}
     </li>
   );
 }

@@ -20,7 +20,8 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 const waitValue = async (loc, want, ms = 2000) => { const t = Date.now(); for (;;) { const v = await loc.inputValue(); if (v === want) return; if (Date.now() - t > ms) throw new Error(`value "${v}" != "${want}"`); await page.waitForTimeout(50); } };
 const cardText = () => text('li.card');
 const setRow = (n) => page.locator('.set-row').nth(n);
-const rpe = (row, value) => setRow(row).getByRole('radio', { name: value, exact: true });
+const rpeChip = (row) => setRow(row).getByRole('button', { name: /^Set \d+ RPE$/ });
+const pickRpe = async (row, value) => { await rpeChip(row).click(); await setRow(row).getByRole('radio', { name: value, exact: true }).click(); };
 
 await step('fresh app shows empty state', async () => {
   await page.goto(BASE);
@@ -91,8 +92,9 @@ await step('start Day A: loads start empty, set 1 copies down', async () => {
   assert((await page.getByLabel('Set 3 load').inputValue()) === '235', 'set 3 should still hold its own value');
   await page.getByLabel('Set 3 load').fill('225');
   for (const n of [1, 2, 3]) await page.getByLabel(`Set ${n} reps`).fill('5');
-  await rpe(0, '7').click();
-  await rpe(1, '6.5').click(); // outside 7–9 → highlighted
+  await pickRpe(0, '7');
+  await pickRpe(1, '6.5'); // outside 7–9 → highlighted
+  assert((await rpeChip(1).innerText()).trim() === '6.5', 'chip should show the picked RPE');
   await shot('04-log');
   assert((await page.locator('.set-row.outside').count()) === 1, 'expected exactly one highlighted row');
 });
@@ -103,7 +105,7 @@ await step('session survives a reload and shows Resume on Today', async () => {
   await page.getByLabel('Set 1 reps').waitFor();
   assert((await page.getByLabel('Set 1 reps').inputValue()) === '5', 'reps lost');
   assert((await page.getByLabel('Set 3 load').inputValue()) === '225', 'copied-down load not persisted');
-  assert((await rpe(0, '7').getAttribute('aria-checked')) === 'true', 'rpe lost');
+  assert((await rpeChip(0).innerText()).trim() === '7', 'rpe lost');
   await page.goto(BASE + '#/');
   await page.getByText('Day A in progress').waitFor();
   await shot('05-today-resume');
@@ -128,7 +130,7 @@ await step('start Day B and log 185 × 9 @ 7, 8, 7', async () => {
   await waitValue(page.getByLabel('Set 2 load'), '185');
   await waitValue(page.getByLabel('Set 3 load'), '185');
   for (const [i, r] of ['9', '8', '7'].entries()) await page.getByLabel(`Set ${i + 1} reps`).fill(r);
-  await rpe(0, '7').click();
+  await pickRpe(0, '7');
   assert((await page.locator('.set-row.outside').count()) === 0, 'unexpected highlight');
   await page.getByRole('button', { name: 'Finish' }).click();
   await page.getByText('Next: Day A').waitFor();
