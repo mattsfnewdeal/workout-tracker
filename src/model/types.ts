@@ -24,9 +24,18 @@ export interface Slot {
   targetRpe: number;
 }
 
+/** A checkbox-only warm-up item: no load, reps or RPE; the note carries anything like "3 × 4 with 4–6 kg". */
+export interface WarmupItem {
+  id: string;
+  name: string;
+  note?: string;
+}
+
 export interface Day {
   id: string;
   name: string;
+  /** Absent on programs built before v1.3. */
+  warmups?: WarmupItem[];
   slots: Slot[];
 }
 
@@ -55,6 +64,14 @@ export interface PlannedSlot {
   suggestion: Suggestion;
 }
 
+/** Snapshot of a warm-up item for one session, with its checkbox. */
+export interface WarmupLog {
+  id: string;
+  name: string;
+  note?: string;
+  done: boolean;
+}
+
 export interface Session {
   id: string;
   programId: string;
@@ -65,6 +82,8 @@ export interface Session {
   finishedAt?: number;
   /** 0 | 1 rather than boolean: IndexedDB can't index booleans. */
   completed: 0 | 1;
+  /** Absent on sessions started before v1.3. Warm-ups never block Finish. */
+  warmups?: WarmupLog[];
   plan: PlannedSlot[];
 }
 

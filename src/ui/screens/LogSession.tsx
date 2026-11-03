@@ -11,7 +11,7 @@ import { fmtDate, fmtLoad, fmtRepTarget, fmtRpe } from '../format';
 import { navigate } from '../router';
 
 export function LogSession({ sessionId }: { sessionId: string }) {
-  const { state, update, saveError } = useActiveSession(sessionId);
+  const { state, update, toggleWarmup, saveError } = useActiveSession(sessionId);
   const [skipped, setSkipped] = useState<string[] | null>(null);
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
@@ -72,6 +72,24 @@ export function LogSession({ sessionId }: { sessionId: string }) {
       </div>
 
       <ul class="list">
+        {session.warmups && session.warmups.length > 0 && (
+          <li class="card">
+            <strong>Warm-up</strong>
+            <ul class="checklist">
+              {session.warmups.map((w) => (
+                <li key={w.id}>
+                  <label class="check">
+                    <input type="checkbox" checked={w.done} onChange={(e) => toggleWarmup(w.id, e.currentTarget.checked)} />
+                    <span class={w.done ? 'done' : ''}>
+                      {w.name}
+                      {w.note && <span class="muted small"> · {w.note}</span>}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </li>
+        )}
         {session.plan.map((slot) => (
           <SlotLog key={slot.slotId} slot={slot} logs={logs.filter((l) => l.slotId === slot.slotId)} update={update} />
         ))}

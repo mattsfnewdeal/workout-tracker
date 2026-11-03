@@ -77,6 +77,9 @@ export function Today() {
       ) : (
         <>
           <h2>Next: {day.name}</h2>
+          {(day.warmups ?? []).length > 0 && (
+            <p class="muted small" style="margin:-4px 0 8px">Warm-up: {(day.warmups ?? []).map((w) => w.name).join(', ')}</p>
+          )}
           {slots.length === 0 ? (
             <div class="empty">
               <p>{day.name} has no exercises yet.</p>

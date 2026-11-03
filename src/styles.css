@@ -188,5 +188,11 @@ table.sets td, table.sets th { padding: 4px 6px; text-align: right; font-size: 1
 table.sets th { color: var(--muted); font-weight: 500; }
 table.sets td:first-child, table.sets th:first-child { text-align: left; }
 
+.checklist { list-style: none; margin: 6px 0 0; padding: 0; }
+.check { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; }
+.check input[type=checkbox], .check input[type=radio] { width: 24px; height: 24px; margin: 0; accent-color: var(--accent); flex: none; }
+.check .done { color: var(--muted); text-decoration: line-through; }
+.dialog label.check { min-height: 40px; }
+
 details.archived summary { cursor: pointer; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }

@@ -1,4 +1,4 @@
-# Workout Tracker — Spec (v1.2)
+# Workout Tracker — Spec (v1.3)
 
 A simple, personal lifting tracker. Runs as a PWA on iPhone (added to the home screen). One user, no backend, no accounts.
 
@@ -276,3 +276,20 @@ SetLog
 7. **Backups.** The backup `schemaVersion` and the Dexie schema version both stay at 1. A backup whose slots still carry `startingLoad` imports; the key is dropped on import and the value is ignored. Saving a program also drops it, so a program built on an older build loses the key on its next save. Sessions and sets import unchanged.
 
 8. **Testing additions.** The engine asserts `load === null` for, and only for, the first session. The data-layer tests cover a range slot from an empty first session through the 185 × 9 @ 7 → 215 example and then the hold branch (215 × 7 @ 8 → stay at 215, beat 7), the first-session Finish messages, the absent-key convention, an abandoned and a skipped first session, a completed row without a load being ignored, Max-above-Min validation, and import of a v1 backup. The browser smoke test builds a program with a Fixed slot on Day A and a Range slot on Day B, logs both first sessions from empty inputs (checking copy-down from set 1), and asserts 230 × 5 @ 8 and 215 × 6–8 @ 8 with the big-jump badge, History e1RMs 286 and 272, export/reset/import, and import of a legacy file.
+
+---
+
+## v1.3 amendments (2026-11-03)
+
+1. **Warm-ups.** Each day has an ordered list of warm-up items that are **checkbox only**: a name and an optional note (e.g. "3 × 4 with 4–6 kg"), no load, reps or RPE, no progression, not in History. Data model: `Day.warmups?: WarmupItem[]` with `WarmupItem { id, name, note? }`. Starting a session snapshots them onto the session as `Session.warmups?: WarmupLog[]` (`{ id, name, note?, done }`, all `done: false`); ticking a box writes through immediately. Warm-ups never block Finish and are not required. Days and sessions from before v1.3 have no `warmups` field and behave as an empty list. The builder edits warm-ups above the exercises of each day; Today lists their names under the day heading; the log screen shows them as a checklist above the first exercise.
+
+2. **Preloaded program.** The app ships one template (`src/db/templates.ts`, `PRELOADED`): Matt's Tuesday / Thursday program. Loading it creates the exercises (reusing any existing exercise with the same name, case-insensitive) and makes the program active, archiving the current one like any new program. It is offered on first launch ("Use preloaded program" next to "Build from scratch") and in the New program dialog as a third source alongside "Empty program" and "Copy of the current program". Loads are still picked in each exercise's first session; every slot's RPE goal is 8 and every exercise's increment is 5 lb.
+
+   | Day | Warm-up (checkbox) | Exercises |
+   |---|---|---|
+   | Tuesday | 90/90 hips · Open books · Jump (3 × 5) · Underhand Scoop (3 × 4 with 4–6 kg) | Squat 3 × 4–6 · DB Bench 3 × 6–8 · DB SLDL 3 × 10 · Chin 3 × 6–10 · Pallof Press 3 × 10 · DB Incline Curl 2 × 12–15 |
+   | Thursday | 90/90 hips · Open books · Jump (3 × 5) · Step-through Put (3 × 4 with 4–6 kg) | Trap 3 × 4–6 · DB Press 3 × 8–10 · BSS 3 × 8 · DB Row 3 × 10 · Cable chop 3 × 10 · DB OTE 2 × 12–15 |
+
+   `N × a–b` is a rep range (double progression); `N × r` is fixed reps (single progression). Sets of 13–15 reps (the 12–15 slots) are past the RTS chart, so those slots get the one-increment fallback and a "low confidence" badge, as in v1.2.
+
+3. **New program dialog.** The "Start from a copy" checkbox became a three-way choice: Empty program / Copy of the current program / Preloaded.

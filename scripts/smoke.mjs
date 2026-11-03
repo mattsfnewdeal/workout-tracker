@@ -31,11 +31,11 @@ await step('fresh app shows empty state', async () => {
 await step('create a program: Squat 3×5 fixed on Day A, Bench Press 3×6–8 range on Day B', async () => {
   await page.getByRole('button', { name: 'Build a program' }).click();
   await page.getByText('You’ll pick each weight in your first session.').waitFor();
-  await page.getByRole('button', { name: 'Create a program' }).click();
+  await page.getByRole('button', { name: 'Build from scratch' }).click();
   await page.getByLabel('Day name').first().waitFor();
   const dayA = page.locator('section.card').nth(0);
   await dayA.getByPlaceholder('Exercise name').fill('Squat');
-  await dayA.getByRole('button', { name: 'Add' }).click();
+  await dayA.getByRole('button', { name: 'Add exercise' }).click();
   await dayA.locator('strong', { hasText: 'Squat' }).waitFor();
   assert((await dayA.getByLabel('Starting load (lb)').count()) === 0, 'starting load field still present');
   assert((await dayA.getByRole('radio', { name: 'Fixed reps' }).getAttribute('aria-checked')) === 'true', 'fixed not selected by default');
@@ -44,7 +44,7 @@ await step('create a program: Squat 3×5 fixed on Day A, Bench Press 3×6–8 ra
 
   const dayB = page.locator('section.card').nth(1);
   await dayB.getByPlaceholder('Exercise name').fill('Bench Press');
-  await dayB.getByRole('button', { name: 'Add' }).click();
+  await dayB.getByRole('button', { name: 'Add exercise' }).click();
   await dayB.locator('strong', { hasText: 'Bench Press' }).waitFor();
   await dayB.getByRole('radio', { name: 'Rep range' }).click();
   assert((await dayB.getByRole('radio', { name: 'Rep range' }).getAttribute('aria-checked')) === 'true', 'range not selected');
@@ -197,6 +197,34 @@ const importFile = async (path) => {
   await page.getByRole('button', { name: 'Import', exact: true }).click();
   await page.getByText('Backup imported').waitFor();
 };
+
+await step('preloaded program: Tuesday/Thursday with checkbox warm-ups that persist', async () => {
+  await page.getByRole('button', { name: 'Build a program' }).click();
+  await page.getByRole('button', { name: 'Use preloaded program' }).click();
+  await page.getByLabel('Day name').first().waitFor();
+  assert((await page.getByLabel('Day name').first().inputValue()) === 'Tuesday', 'first day should be Tuesday');
+  assert((await page.getByLabel('Warm-up name').count()) === 8, 'expected 4 warm-ups per day');
+  await shot('11-program-preloaded');
+  await page.getByRole('link', { name: 'Today' }).click();
+  await page.getByText('Next: Tuesday').waitFor();
+  const t = await page.locator('main').innerText();
+  for (const s of ['Warm-up: 90/90 hips, Open books, Jump, Underhand Scoop', 'Squat', '4–6 reps @ 8', 'DB SLDL', '10 reps @ 8', 'DB Incline Curl', '12–15 reps @ 8']) assert(t.includes(s), `missing "${s}"`);
+  await shot('12-today-preloaded');
+  await page.getByRole('button', { name: 'Start Tuesday' }).click();
+  await page.waitForURL(/#\/log\//);
+  await page.getByRole('checkbox', { name: '90/90 hips' }).check();
+  await page.getByRole('checkbox', { name: /Underhand Scoop/ }).check();
+  await page.waitForTimeout(250);
+  await shot('13-log-warmup');
+  await page.reload();
+  await page.getByRole('checkbox', { name: '90/90 hips' }).waitFor();
+  assert(await page.getByRole('checkbox', { name: '90/90 hips' }).isChecked(), 'warm-up tick lost on reload');
+  assert(await page.getByRole('checkbox', { name: /Underhand Scoop/ }).isChecked(), 'scoop tick lost on reload');
+  assert(!(await page.getByRole('checkbox', { name: 'Open books' }).isChecked()), 'open books should be unticked');
+  await page.getByRole('button', { name: 'Abandon' }).first().click();
+  await page.getByRole('button', { name: 'Abandon', exact: true }).last().click();
+  await page.getByText('Next: Tuesday').waitFor();
+});
 
 await step('import restores the backup and the 215 suggestion', async () => {
   await importFile(backupPath);

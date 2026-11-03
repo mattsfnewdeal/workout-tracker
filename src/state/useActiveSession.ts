@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { db } from '../db/db';
-import { updateSetLog, type SetLogPatch } from '../db/ops';
+import { setWarmupDone, updateSetLog, type SetLogPatch } from '../db/ops';
 import { getSessionLogs } from '../db/queries';
 import type { Session, SetLog } from '../model/types';
 
@@ -46,5 +46,13 @@ export function useActiveSession(sessionId: string) {
     );
   }, []);
 
-  return { state, update, saveError };
+  const toggleWarmup = useCallback((itemId: string, done: boolean) => {
+    setState((s) => (s ? { ...s, session: { ...s.session, warmups: (s.session.warmups ?? []).map((w) => (w.id === itemId ? { ...w, done } : w)) } } : s));
+    setWarmupDone(sessionId, itemId, done).then(
+      () => setSaveError(null),
+      (e: Error) => setSaveError(`Couldn’t save: ${e.message}`),
+    );
+  }, [sessionId]);
+
+  return { state, update, toggleWarmup, saveError };
 }

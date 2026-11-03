@@ -1,5 +1,5 @@
 import { DEFAULT_TARGET_RPE } from '../engine';
-import type { Day, Exercise, PlannedSlot, Program, Session, SetLog, Slot } from '../model/types';
+import type { Day, Exercise, PlannedSlot, Program, Session, SetLog, Slot, WarmupItem } from '../model/types';
 import { db, type WorkoutDB } from './db';
 import { getInProgressSession } from './queries';
 
@@ -36,19 +36,22 @@ export async function updateExercise(id: string, patch: Partial<Pick<Exercise, '
 }
 
 export function newDay(name: string): Day {
-  return { id: newId(), name, slots: [] };
+  return { id: newId(), name, warmups: [], slots: [] };
+}
+
+export function newWarmup(name: string, note?: string): WarmupItem {
+  const n = normalizeName(note ?? '');
+  return { id: newId(), name: normalizeName(name), ...(n ? { note: n } : {}) };
 }
 
 export function newSlot(exerciseId: string, partial: Partial<Slot> = {}): Slot {
-  return {
-    id: newId(),
-    exerciseId,
-    sets: 3,
-    progression: 'single',
-    targetReps: 5,
-    targetRpe: DEFAULT_TARGET_RPE,
-    ...partial,
-  };
+  const slot: Slot = { id: newId(), exerciseId, sets: 3, progression: 'single', targetRpe: DEFAULT_TARGET_RPE, ...partial };
+  if (slot.progression === 'single') slot.targetReps ??= 5;
+  else {
+    slot.repMin ??= 6;
+    slot.repMax ??= 8;
+  }
+  return slot;
 }
 
 /** Switch a slot between fixed reps and a rep range, carrying the visible number across: Fixed 5 → Range 5–7, Range 6–8 → Fixed 6. */
@@ -91,6 +94,7 @@ export function validateProgram(p: Program): void {
   if (!normalizeName(p.name)) throw new Error('Program needs a name');
   if (p.days.length === 0) throw new Error('Program needs at least one day');
   for (const day of p.days) {
+    for (const w of day.warmups ?? []) if (!normalizeName(w.name)) throw new Error(`${day.name}: a warm-up needs a name`);
     const seen = new Set<string>();
     for (const slot of day.slots) {
       if (seen.has(slot.exerciseId)) throw new Error(`${day.name}: the same exercise can't appear twice in one day`);
@@ -141,6 +145,7 @@ export async function startSession(program: Program, dayIndex: number, plan: Pla
     dayName: day.name,
     startedAt: Date.now(),
     completed: 0,
+    warmups: (day.warmups ?? []).map((w) => ({ id: w.id, name: w.name, ...(w.note ? { note: w.note } : {}), done: false })),
     plan,
   };
   const logs: SetLog[] = [];
@@ -160,6 +165,15 @@ export async function startSession(program: Program, dayIndex: number, plan: Pla
     await d.setLogs.bulkAdd(logs);
   });
   return session;
+}
+
+/** Tick or untick one warm-up item on an in-progress session. */
+export async function setWarmupDone(sessionId: string, itemId: string, done: boolean, d: WorkoutDB = db): Promise<void> {
+  await d.transaction('rw', d.sessions, async () => {
+    const s = await d.sessions.get(sessionId);
+    if (!s) return;
+    await d.sessions.update(sessionId, { warmups: (s.warmups ?? []).map((w) => (w.id === itemId ? { ...w, done } : w)) });
+  });
 }
 
 export type SetLogPatch = Partial<Pick<SetLog, 'load' | 'reps' | 'rpe'>>;

@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'preact/hooks';
 import { DEFAULT_TARGET_RPE, MAX_EFFECTIVE_REPS } from '../../engine';
-import { createProgram, emptyProgram, findOrCreateExercise, newDay, newId, newSlot, saveProgram, switchProgression, updateExercise } from '../../db/ops';
+import { createProgram, emptyProgram, findOrCreateExercise, newDay, newId, newSlot, newWarmup, saveProgram, switchProgression, updateExercise } from '../../db/ops';
+import { PRELOADED, loadTemplate } from '../../db/templates';
 import { getActiveProgram, getAllExercises, getArchivedPrograms, getInProgressSession } from '../../db/queries';
 import { useLiveQuery } from '../../db/useLiveQuery';
-import type { Day, Exercise, Program, Slot } from '../../model/types';
+import type { Day, Exercise, Program, Slot, WarmupItem } from '../../model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { NumberField } from '../components/NumberField';
 import { RpePicker } from '../components/RpePicker';
 import { fmtDate, fmtLoad } from '../format';
+
+type NewSource = 'empty' | 'copy' | 'template';
+const SOURCES: [NewSource, string][] = [
+  ['empty', 'Empty program'],
+  ['copy', 'Copy of the current program'],
+  ['template', `Preloaded: ${PRELOADED.name}`],
+];
 
 function cloneProgram(p: Program): Program {
   return {
@@ -18,7 +26,7 @@ function cloneProgram(p: Program): Program {
     status: 'active',
     createdAt: Date.now(),
     archivedAt: undefined,
-    days: p.days.map((d) => ({ ...d, id: newId(), slots: d.slots.map((s) => ({ ...s, id: newId() })) })),
+    days: p.days.map((d) => ({ ...d, id: newId(), warmups: (d.warmups ?? []).map((w) => ({ ...w, id: newId() })), slots: d.slots.map((s) => ({ ...s, id: newId() })) })),
   };
 }
 
@@ -40,7 +48,7 @@ export function ProgramEditor() {
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [confirmNew, setConfirmNew] = useState(false);
-  const [copy, setCopy] = useState(false);
+  const [source, setSource] = useState<NewSource>('empty');
 
   useEffect(() => {
     if (active === undefined) return;
@@ -73,10 +81,15 @@ export function ProgramEditor() {
     }
   }
 
-  async function startNew() {
+  async function startNew(src: NewSource) {
     try {
-      const p = copy && active ? cloneProgram(active) : emptyProgram(active ? `Program ${archived.length + 2}` : 'My program');
-      await createProgram(p);
+      let p: Program;
+      if (src === 'template') {
+        p = await loadTemplate(PRELOADED);
+      } else {
+        p = src === 'copy' && active ? cloneProgram(active) : emptyProgram(active ? `Program ${archived.length + 2}` : 'My program');
+        await createProgram(p);
+      }
       setDraft(p);
       setDirty(false);
       setMessage({ kind: 'ok', text: active ? `Archived “${active.name}”` : 'Program created' });
@@ -102,8 +115,9 @@ export function ProgramEditor() {
 
       {!draft ? (
         <div class="empty">
-          <p>No program yet. Build your weekly cycle: days, then exercises with sets, reps and an RPE goal. You’ll pick each weight in your first session.</p>
-          <button type="button" class="btn btn-primary btn-big" onClick={startNew}>Create a program</button>
+          <p>No program yet. Use the preloaded {PRELOADED.name} program, or build your own: days, then exercises with sets, reps and an RPE goal. You’ll pick each weight in your first session.</p>
+          <button type="button" class="btn btn-primary btn-big" onClick={() => startNew('template')}>Use preloaded program</button>
+          <button type="button" class="btn" onClick={() => startNew('empty')}>Build from scratch</button>
         </div>
       ) : (
         <>
@@ -180,16 +194,17 @@ export function ProgramEditor() {
         title={active ? `Archive “${active.name}”?` : 'Create a program?'}
         confirmLabel="New program"
         onCancel={() => setConfirmNew(false)}
-        onConfirm={startNew}
+        onConfirm={() => startNew(source)}
       >
-        {active && (
-          <>
-            <p>The current program is kept read-only under Archived. Exercise history and progression carry over.</p>
-            <label class="row gap">
-              <input type="checkbox" checked={copy} onChange={(e) => setCopy(e.currentTarget.checked)} /> Start from a copy of it
+        {active && <p>The current program is kept read-only under Archived. Exercise history and progression carry over.</p>}
+        <div class="stack" style="margin-top:8px">
+          {SOURCES.filter(([v]) => v !== 'copy' || active).map(([v, label]) => (
+            <label key={v} class="check">
+              <input type="radio" name="new-program-source" value={v} checked={source === v} onChange={() => setSource(v)} />
+              <span>{label}</span>
             </label>
-          </>
-        )}
+          ))}
+        </div>
       </ConfirmDialog>
     </main>
   );
@@ -207,7 +222,17 @@ interface DayProps {
 
 function DayEditor({ day, index, count, exercises, onChange, onMove, onDelete }: DayProps) {
   const [newName, setNewName] = useState('');
+  const [newWarmupName, setNewWarmupName] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const warmups = day.warmups ?? [];
+
+  const setWarmup = (w: WarmupItem) => onChange({ ...day, warmups: warmups.map((x) => (x.id === w.id ? w : x)) });
+  function addWarmup() {
+    const name = newWarmupName.trim();
+    if (!name) return;
+    onChange({ ...day, warmups: [...warmups, newWarmup(name)] });
+    setNewWarmupName('');
+  }
 
   async function addExercise() {
     const name = newName.trim();
@@ -235,6 +260,38 @@ function DayEditor({ day, index, count, exercises, onChange, onMove, onDelete }:
         <button type="button" class="btn btn-small btn-icon" onClick={onDelete} aria-label="Delete day">✕</button>
       </div>
 
+      <p class="muted small" style="margin:10px 0 2px">Warm-up · checkbox only</p>
+      {warmups.map((w) => (
+        <div key={w.id} class="row gap" style="margin-top:6px">
+          <input class="text grow" type="text" value={w.name} aria-label="Warm-up name" onInput={(e) => setWarmup({ ...w, name: e.currentTarget.value })} />
+          <input
+            class="text grow"
+            type="text"
+            value={w.note ?? ''}
+            placeholder="note, e.g. 3 × 5"
+            aria-label="Warm-up note"
+            onInput={(e) => {
+              const next: WarmupItem = { ...w, note: e.currentTarget.value };
+              if (!next.note) delete next.note;
+              setWarmup(next);
+            }}
+          />
+          <button type="button" class="btn btn-small btn-icon" onClick={() => onChange({ ...day, warmups: warmups.filter((x) => x.id !== w.id) })} aria-label="Remove warm-up">✕</button>
+        </div>
+      ))}
+      <div class="row gap" style="margin-top:6px">
+        <input
+          class="text grow"
+          type="text"
+          placeholder="Warm-up name"
+          value={newWarmupName}
+          onInput={(e) => setNewWarmupName(e.currentTarget.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addWarmup(); } }}
+        />
+        <button type="button" class="btn" aria-label="Add warm-up" onClick={addWarmup}>Add</button>
+      </div>
+
+      <p class="muted small" style="margin:14px 0 2px">Exercises</p>
       {day.slots.map((slot, si) => (
         <SlotEditor
           key={slot.id}
@@ -261,7 +318,7 @@ function DayEditor({ day, index, count, exercises, onChange, onMove, onDelete }:
         <datalist id={`ex-${day.id}`}>
           {exercises.map((e) => <option key={e.id} value={e.name} />)}
         </datalist>
-        <button type="button" class="btn" onClick={addExercise}>Add</button>
+        <button type="button" class="btn" aria-label="Add exercise" onClick={addExercise}>Add</button>
       </div>
       {err && <p class="error small">{err}</p>}
     </section>
