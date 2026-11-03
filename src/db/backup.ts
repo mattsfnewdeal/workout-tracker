@@ -92,20 +92,21 @@ export async function exportBackup(d: WorkoutDB = db): Promise<boolean> {
   if (typeof nav.share === 'function' && nav.canShare?.({ files: [file] })) {
     try {
       await nav.share({ files: [file], title: name });
+      await markBackedUp(Date.now(), d);
+      return true;
     } catch (err) {
       if ((err as DOMException).name === 'AbortError') return false;
-      throw err;
+      // Share sheet unavailable (desktop browsers, headless): fall through to a download.
     }
-  } else {
-    const url = URL.createObjectURL(file);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
   await markBackedUp(Date.now(), d);
   return true;
 }
