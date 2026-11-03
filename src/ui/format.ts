@@ -1,0 +1,42 @@
+import type { RepTarget, Suggestion } from '../engine';
+
+export function fmtLoad(n: number): string {
+  if (Number.isInteger(n)) return String(n);
+  return n.toFixed(2).replace(/\.?0+$/, '');
+}
+
+export function fmtRpe(r: number | null | undefined): string {
+  return r == null ? '—' : String(r);
+}
+
+export function fmtRepTarget(t: RepTarget): string {
+  if (t.kind === 'fixed') return String(t.reps);
+  return `${t.min}–${t.max}`;
+}
+
+/** "225 × 5 @ 8" or "185 × 6–8 @ 8". */
+export function fmtSuggestion(s: Suggestion): string {
+  return `${fmtLoad(s.load)} × ${fmtRepTarget(s.repTarget)} @ ${s.targetRpe}`;
+}
+
+export function fmtDate(ts?: number): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
+}
+
+export function fmtDateTime(ts?: number): string {
+  if (!ts) return '';
+  return new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+export function fmtAgo(ts: number, now = Date.now()): string {
+  const m = Math.max(0, Math.round((now - ts) / 60000));
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'yesterday' : `${d} days ago`;
+}

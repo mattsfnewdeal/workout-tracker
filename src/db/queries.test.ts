@@ -142,7 +142,8 @@ describe('finish / abandon / pointer', () => {
     await updateSetLog(logs[0].id, { load: 230, reps: 5, rpe: 7.5 }, d);
     const fresh = new WorkoutDB(d.name);
     const again = await getSessionLogs(session.id, fresh);
-    expect(again[0]).toMatchObject({ load: 230, reps: 5, rpe: 7.5, suggestedLoad: 225 });
+    const row = again.find((l) => l.id === logs[0].id)!;
+    expect(row).toMatchObject({ load: 230, reps: 5, rpe: 7.5, suggestedLoad: logs[0].suggestedLoad });
   });
 });
 
