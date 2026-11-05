@@ -8,7 +8,7 @@ export const RPE_MIN = 6.5;
 export const RPE_MAX = 10;
 export const RPE_STEP = 0.5;
 export const DEFAULT_TARGET_RPE = 8;
-/** Sets outside this range are highlighted on the log screen. */
+/** Visual band for the RPE picker when no slot goal is given; set colouring on the log screen is goal-relative (see classify.ts). */
 export const WORKING_RPE_MIN = 7;
 export const WORKING_RPE_MAX = 9;
 /** The chart only covers 1–12 reps; longer sets get no e1RM. */

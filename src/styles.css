@@ -141,10 +141,22 @@ select {
 .hint .badge { margin-left: 6px; vertical-align: middle; }
 .summary { font-size: 15px; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
 .problems { padding-left: 18px; margin: 12px 0 0; }
-.set-head { display: grid; grid-template-columns: 26px 1fr 1fr 76px; gap: 10px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 20px; padding: 0 2px; }
-.set-row { display: grid; grid-template-columns: 26px 1fr 1fr 76px; gap: 10px; align-items: center; margin-top: 14px; border-radius: 10px; }
+.set-head { display: grid; grid-template-columns: 26px 1fr 1fr 76px; gap: 10px; padding-left: 8px; padding-right: 8px; margin-left: -8px; margin-right: -8px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 20px; padding: 0 2px; }
+.set-row { display: grid; grid-template-columns: 26px 1fr 1fr 76px; gap: 10px; align-items: center; margin: 14px -8px 0; padding: 6px 8px; border-radius: 10px; }
 .set-row .set-no { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 15px; text-align: center; }
-.set-row.outside { background: rgba(255, 176, 32, 0.08); margin-left: -8px; margin-right: -8px; padding: 6px 8px; }
+.set-row.good { background: rgba(52, 199, 89, 0.10); }
+.set-row.easy { background: rgba(79, 140, 255, 0.10); }
+.set-row.hard { background: rgba(255, 176, 32, 0.10); }
+.set-row.good .set-no { color: var(--ok); }
+.set-row.easy .set-no { color: #8db4ff; }
+.set-row.hard .set-no { color: var(--warn); }
+.set-row.good .set-no::after { content: ' ✓'; font-size: 11px; }
+.set-row.easy .set-no::after { content: ' ↓'; font-size: 11px; }
+.set-row.hard .set-no::after { content: ' !'; font-size: 11px; font-weight: 700; }
+.sum { white-space: nowrap; }
+.sum.good { color: var(--ok); }
+.sum.easy { color: #8db4ff; }
+.sum.hard { color: var(--warn); }
 .set-rpe { grid-column: 1 / -1; padding: 8px 0 4px; }
 .rpe-chip {
   appearance: none;
@@ -162,7 +174,9 @@ select {
 }
 .rpe-chip.is-empty { color: var(--muted); font-size: 14px; font-weight: 500; }
 .rpe-chip.open { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-.rpe-chip.outside { background: rgba(255, 176, 32, 0.18); border-color: var(--warn); color: var(--warn); }
+.rpe-chip.good { background: rgba(52, 199, 89, 0.18); border-color: var(--ok); color: var(--ok); }
+.rpe-chip.easy { background: rgba(79, 140, 255, 0.18); border-color: var(--accent); color: #8db4ff; }
+.rpe-chip.hard { background: rgba(255, 176, 32, 0.18); border-color: var(--warn); color: var(--warn); }
 
 .tabbar {
   position: fixed;

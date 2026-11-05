@@ -20,7 +20,7 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 const waitValue = async (loc, want, ms = 2000) => { const t = Date.now(); for (;;) { const v = await loc.inputValue(); if (v === want) return; if (Date.now() - t > ms) throw new Error(`value "${v}" != "${want}"`); await page.waitForTimeout(50); } };
 const cardText = () => text('li.card');
 const setRow = (n) => page.locator('.set-row').nth(n);
-const rpeChip = (row) => setRow(row).getByRole('button', { name: /^Set \d+ RPE$/ });
+const rpeChip = (row) => setRow(row).getByRole('button', { name: /^Set \d+ RPE(,|$)/ });
 const pickRpe = async (row, value) => { await rpeChip(row).click(); await setRow(row).getByRole('radio', { name: value, exact: true }).click(); };
 
 await step('fresh app shows empty state', async () => {
@@ -93,10 +93,10 @@ await step('start Day A: loads start empty, set 1 copies down', async () => {
   await page.getByLabel('Set 3 load').fill('225');
   for (const n of [1, 2, 3]) await page.getByLabel(`Set ${n} reps`).fill('5');
   await pickRpe(0, '7');
-  await pickRpe(1, '6.5'); // outside 7–9 → highlighted
+  await pickRpe(1, '6.5'); // more than a point under the goal → 'easy' (blue)
   assert((await rpeChip(1).innerText()).trim() === '6.5', 'chip should show the picked RPE');
   await shot('04-log');
-  assert((await page.locator('.set-row.outside').count()) === 1, 'expected exactly one highlighted row');
+  assert((await page.locator('.set-row.easy').count()) === 1 && (await page.locator('.set-row.good').count()) === 2, 'expected 2 good rows and 1 easy row');
 });
 
 await step('session survives a reload and shows Resume on Today', async () => {
@@ -131,7 +131,7 @@ await step('start Day B and log 185 × 9 @ 7, 8, 7', async () => {
   await waitValue(page.getByLabel('Set 3 load'), '185');
   for (const [i, r] of ['9', '8', '7'].entries()) await page.getByLabel(`Set ${i + 1} reps`).fill(r);
   await pickRpe(0, '7');
-  assert((await page.locator('.set-row.outside').count()) === 0, 'unexpected highlight');
+  assert((await page.locator('.set-row.good').count()) === 3, 'all three bench sets should be good');
   await page.getByRole('button', { name: 'Finish' }).click();
   await page.getByText('Next: Day A').waitFor();
 });

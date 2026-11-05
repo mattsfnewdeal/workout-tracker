@@ -1,5 +1,6 @@
+import { Fragment } from 'preact';
 import { useRef, useState } from 'preact/hooks';
-import { isOutsideWorkingRange, reasonText } from '../../engine';
+import { classifySet, reasonText } from '../../engine';
 import { abandonSession, checkFinish, finishSession, type SetLogPatch } from '../../db/ops';
 import type { PlannedSlot, SetLog, WarmupLog } from '../../model/types';
 import { copyDownTargets } from '../../state/copyDown';
@@ -188,10 +189,15 @@ function ExerciseCard({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[
     basis.current = v;
   }
 
+  const status = (l: SetLog) => classifySet(s.repTarget, s.targetRpe, l.reps, l.rpe);
   const summary = rows
     .filter((l) => l.reps != null)
-    .map((l) => `${l.load != null ? fmtLoad(l.load) : '?'} × ${l.reps}${l.rpe != null ? ` @ ${l.rpe}` : ''}`)
-    .join(' · ');
+    .map((l, i) => (
+      <Fragment key={l.id}>
+        {i > 0 && ' · '}
+        <span class={`sum ${status(l)}`}>{l.load != null ? fmtLoad(l.load) : '?'} × {l.reps}{l.rpe != null ? ` @ ${l.rpe}` : ''}</span>
+      </Fragment>
+    ));
 
   return (
     <li class={`card ${done ? 'is-done' : ''}`}>
@@ -203,7 +209,7 @@ function ExerciseCard({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[
         onToggle={() => setCollapsed(!collapsed)}
       />
       {collapsed ? (
-        <p class="summary muted">{summary || 'Not logged yet'}</p>
+        <p class="summary muted">{summary.length ? summary : 'Not logged yet'}</p>
       ) : (
         <>
           <p class="hint muted">
@@ -217,17 +223,17 @@ function ExerciseCard({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[
           )}
           <div class="set-head"><span>Set</span><span>Load (lb)</span><span>Reps</span><span>RPE</span></div>
           {rows.map((log) => {
-            const outside = log.rpe != null && isOutsideWorkingRange(log.rpe);
+            const st = status(log);
             const open = openRpe === log.id;
             return (
-              <div key={log.id} class={`set-row ${outside ? 'outside' : ''}`}>
-                <span class="set-no">{log.setNumber}</span>
+              <div key={log.id} class={`set-row ${st}`}>
+                <span class="set-no" aria-label={`Set ${log.setNumber}${st !== 'pending' ? `, ${st}` : ''}`}>{log.setNumber}</span>
                 <NumberField value={log.load} onChange={(v) => onLoad(log, v)} mode="decimal" label={`Set ${log.setNumber} load`} min={0} placeholder="lb" />
                 <NumberField value={log.reps} onChange={(v) => update(log.id, { reps: v })} mode="numeric" label={`Set ${log.setNumber} reps`} min={0} placeholder="reps" />
                 <button
                   type="button"
-                  class={`rpe-chip ${log.rpe == null ? 'is-empty' : ''} ${outside ? 'outside' : ''} ${open ? 'open' : ''}`}
-                  aria-label={`Set ${log.setNumber} RPE`}
+                  class={`rpe-chip ${log.rpe == null ? 'is-empty' : ''} ${log.rpe != null ? st : ''} ${open ? 'open' : ''}`}
+                  aria-label={`Set ${log.setNumber} RPE${st !== 'pending' ? `, ${st}` : ''}`}
                   aria-expanded={open}
                   onClick={() => setOpenRpe(open ? null : log.id)}
                 >
@@ -237,6 +243,7 @@ function ExerciseCard({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[
                   <div class="set-rpe">
                     <RpePicker
                       compact
+                      targetRpe={s.targetRpe}
                       value={log.rpe}
                       onChange={(v) => {
                         update(log.id, { rpe: v });

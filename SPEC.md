@@ -90,7 +90,7 @@ Follows RTS / Barbell Medicine conventions: RPE = reps in reserve (RIR).
 | 6.5 | 3–4 reps left |
 
 - Input: RPE 6.5 to 10 in half steps. Lower RPEs aren't rated reliably, so they aren't offered.
-- **Working range is RPE 7–9.** Highlight any logged set outside it.
+- **Working range is RPE 7–9.** (v1.3: completed sets are coloured relative to the slot's goal RPE instead — green when reps hit the target and RPE is within ±1 of the goal, which is 7–9 for the default goal 8; blue when RPE is more than a point under; amber when reps fall short or RPE is more than a point over.)
 - **Target RPE for suggestions is 8.**
 
 ### RTS %1RM table
@@ -192,7 +192,7 @@ The suggested load and reps are prefilled but always editable. Logged values are
    - One row per set with load (prefilled), reps, and RPE.
    - Reps open the numeric keypad. RPE uses a picker or segmented control in half steps.
    - Big **Finish** button. Finishing saves the session and advances the A/B pointer.
-   - Sets outside RPE 7–9 are highlighted.
+   - Completed sets are colour-coded against the slot's rep target and RPE goal (see the Working range note above).
 3. **Program editor**
    - Add, rename, or reorder days and slots. Add new exercises inline.
    - Each slot sets: sets, progression type, reps (target or range), starting load, and exercise increment.
