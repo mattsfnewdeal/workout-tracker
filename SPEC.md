@@ -1,4 +1,4 @@
-# Workout Tracker — Spec (v1.3)
+# Workout Tracker — Spec (v1.4)
 
 A simple, personal lifting tracker. Runs as a PWA on iPhone (added to the home screen). One user, no backend, no accounts.
 
@@ -293,3 +293,13 @@ SetLog
    `N × a–b` is a rep range (double progression); `N × r` is fixed reps (single progression). Sets of 13–15 reps (the 12–15 slots) are past the RTS chart, so those slots get the one-increment fallback and a "low confidence" badge, as in v1.2.
 
 3. **New program dialog.** The "Start from a copy" checkbox became a three-way choice: Empty program / Copy of the current program / Preloaded.
+
+## v1.4 amendments (2026-11-06)
+
+1. **Exercise swaps and additions mid-session.** On the log screen every exercise card has **Swap exercise**, and the list ends with **Add exercise**. Both open the same dialog: exercise name (type-ahead over existing exercises; a new name creates the exercise with the default 5 lb increment), sets, fixed reps or a rep range, RPE goal, and a scope choice:
+   - **Just this session** — only the session's plan snapshot changes. The program is untouched, so the next time that day comes round it is as the builder left it.
+   - **This and future sessions** — the program's day is edited too: a swap rewrites the slot in place (same position, new exercise and scheme); an add appends a slot. The program must still be active and the day still exist, else the dialog asks to apply it to just this session.
+
+   A swap starts from the slot's current scheme (e.g. 3 × 4–6 @ 8); an add starts from 3 × 5 @ 8. The swapped-in or added exercise gets the usual suggestion from its own history (or a first session with no load). Rows already logged for a swapped-out exercise are discarded; the dialog says so. The same exercise can't appear twice in a session or on a program day. The card shows a note: "Swapped in for Squat · this and future sessions" or "Added · this session only". History, progression and Finish treat such slots like any other.
+
+   Data model: `PlannedSlot.change?: { kind: 'swap' | 'add'; scope: 'session' | 'program'; replaced?: string }`. A swap keeps the slot id (so a later swap of the same card, with program scope, still replaces the same program slot); its set rows are deleted and recreated. Implementation: `src/state/slotChanges.ts` (`swapExercise`, `addExercise`), one transaction over sessions, setLogs and programs.

@@ -52,7 +52,21 @@ export interface Program {
   archivedAt?: number;
 }
 
-/** Snapshot of one slot at the moment a session starts. */
+/** The sets / reps / RPE goal of a slot without its identity. What a swap or add asks for. */
+export type SlotSpec = Omit<Slot, 'id' | 'exerciseId'>;
+
+/** Whether a mid-session change stays in this session or is written to the program's day as well. */
+export type ChangeScope = 'session' | 'program';
+
+/** Recorded on a planned slot that was swapped in or added during the session, so the log screen can say so. */
+export interface SlotChange {
+  kind: 'swap' | 'add';
+  scope: ChangeScope;
+  /** On a swap: the name of the exercise that was replaced. */
+  replaced?: string;
+}
+
+/** Snapshot of one slot at the moment a session starts (or when it is swapped / added mid-session). */
 export interface PlannedSlot {
   slotId: string;
   exerciseId: string;
@@ -62,6 +76,8 @@ export interface PlannedSlot {
   /** When the exercise was last logged (completed session), for the Today screen. */
   lastSessionAt?: number;
   suggestion: Suggestion;
+  /** Absent on slots that came from the program as planned. */
+  change?: SlotChange;
 }
 
 /** Snapshot of a warm-up item for one session, with its checkbox. */

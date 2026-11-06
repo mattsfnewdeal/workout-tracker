@@ -1,5 +1,5 @@
 import { DEFAULT_TARGET_RPE } from '../engine';
-import type { Day, Exercise, PlannedSlot, Program, Session, SetLog, Slot, WarmupItem } from '../model/types';
+import type { Day, Exercise, PlannedSlot, Program, Session, SetLog, Slot, SlotSpec, WarmupItem } from '../model/types';
 import { db, type WorkoutDB } from './db';
 import { getInProgressSession } from './queries';
 
@@ -55,7 +55,7 @@ export function newSlot(exerciseId: string, partial: Partial<Slot> = {}): Slot {
 }
 
 /** Switch a slot between fixed reps and a rep range, carrying the visible number across: Fixed 5 → Range 5–7, Range 6–8 → Fixed 6. */
-export function switchProgression(slot: Slot, progression: Slot['progression']): Slot {
+export function switchProgression<T extends SlotSpec>(slot: T, progression: Slot['progression']): T {
   if (progression === slot.progression) return slot;
   if (progression === 'single') return { ...slot, progression, targetReps: slot.repMin ?? slot.targetReps ?? 5 };
   const repMin = slot.targetReps ?? slot.repMin ?? 6;
@@ -89,6 +89,20 @@ export function emptyProgram(name = 'My program'): Program {
   };
 }
 
+/** Why a slot's sets / reps aren't valid, or null when they are. */
+export function slotProblem(slot: SlotSpec): string | null {
+  if (!Number.isInteger(slot.sets) || slot.sets < 1) return 'sets must be at least 1';
+  if (slot.progression === 'single') {
+    if (!Number.isInteger(slot.targetReps) || (slot.targetReps ?? 0) < 1) return 'target reps must be at least 1';
+  } else {
+    const { repMin, repMax } = slot;
+    if (!Number.isInteger(repMin) || !Number.isInteger(repMax) || (repMin ?? 0) < 1 || (repMax ?? 0) <= (repMin ?? 0)) {
+      return 'rep range must be like 6–8';
+    }
+  }
+  return null;
+}
+
 /** Throws with a human-readable message when a program isn't valid to save. */
 export function validateProgram(p: Program): void {
   if (!normalizeName(p.name)) throw new Error('Program needs a name');
@@ -99,15 +113,8 @@ export function validateProgram(p: Program): void {
     for (const slot of day.slots) {
       if (seen.has(slot.exerciseId)) throw new Error(`${day.name}: the same exercise can't appear twice in one day`);
       seen.add(slot.exerciseId);
-      if (!Number.isInteger(slot.sets) || slot.sets < 1) throw new Error(`${day.name}: sets must be at least 1`);
-      if (slot.progression === 'single') {
-        if (!Number.isInteger(slot.targetReps) || (slot.targetReps ?? 0) < 1) throw new Error(`${day.name}: target reps must be at least 1`);
-      } else {
-        const { repMin, repMax } = slot;
-        if (!Number.isInteger(repMin) || !Number.isInteger(repMax) || (repMin ?? 0) < 1 || (repMax ?? 0) <= (repMin ?? 0)) {
-          throw new Error(`${day.name}: rep range must be like 6–8`);
-        }
-      }
+      const problem = slotProblem(slot);
+      if (problem) throw new Error(`${day.name}: ${problem}`);
     }
   }
 }
@@ -133,6 +140,20 @@ export async function createProgram(program: Program, d: WorkoutDB = db): Promis
   });
 }
 
+/** One empty row per set of a planned slot, prefilled with the suggested load when there is one. */
+export function setRowsFor(sessionId: string, slot: PlannedSlot): SetLog[] {
+  const logs: SetLog[] = [];
+  for (let n = 1; n <= slot.sets; n++) {
+    const row: SetLog = { id: newId(), sessionId, slotId: slot.slotId, exerciseId: slot.exerciseId, setNumber: n };
+    if (slot.suggestion.load != null) {
+      row.load = slot.suggestion.load;
+      row.suggestedLoad = slot.suggestion.load;
+    }
+    logs.push(row);
+  }
+  return logs;
+}
+
 /** Create the session and pre-create every set row, prefilled with the suggested load when there is one. */
 export async function startSession(program: Program, dayIndex: number, plan: PlannedSlot[], d: WorkoutDB = db): Promise<Session> {
   const day = program.days[dayIndex];
@@ -148,17 +169,7 @@ export async function startSession(program: Program, dayIndex: number, plan: Pla
     warmups: (day.warmups ?? []).map((w) => ({ id: w.id, name: w.name, ...(w.note ? { note: w.note } : {}), done: false })),
     plan,
   };
-  const logs: SetLog[] = [];
-  for (const slot of plan) {
-    for (let n = 1; n <= slot.sets; n++) {
-      const row: SetLog = { id: newId(), sessionId: session.id, slotId: slot.slotId, exerciseId: slot.exerciseId, setNumber: n };
-      if (slot.suggestion.load != null) {
-        row.load = slot.suggestion.load;
-        row.suggestedLoad = slot.suggestion.load;
-      }
-      logs.push(row);
-    }
-  }
+  const logs = plan.flatMap((slot) => setRowsFor(session.id, slot));
   await d.transaction('rw', d.sessions, d.setLogs, async () => {
     if (await getInProgressSession(d)) throw new Error('A session is already in progress');
     await d.sessions.add(session);

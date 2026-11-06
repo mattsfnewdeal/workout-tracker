@@ -1,13 +1,14 @@
 import { Fragment } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { classifySet, reasonText } from '../../engine';
-import { abandonSession, checkFinish, finishSession, type SetLogPatch } from '../../db/ops';
-import type { PlannedSlot, SetLog, WarmupLog } from '../../model/types';
+import { abandonSession, checkFinish, findOrCreateExercise, finishSession, slotProblem, type SetLogPatch } from '../../db/ops';
+import type { ChangeScope, PlannedSlot, SetLog, SlotChange, SlotSpec, WarmupLog } from '../../model/types';
 import { copyDownTargets } from '../../state/copyDown';
 import { useActiveSession } from '../../state/useActiveSession';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { NumberField } from '../components/NumberField';
 import { RpePicker } from '../components/RpePicker';
+import { SlotDialog, type SlotDialogMode } from '../components/SlotDialog';
 import { fmtDate, fmtLoad, fmtRepTarget, fmtRpe } from '../format';
 import { navigate } from '../router';
 
@@ -17,7 +18,8 @@ function slotDone(slot: PlannedSlot, logs: SetLog[]): boolean {
 }
 
 export function LogSession({ sessionId }: { sessionId: string }) {
-  const { state, update, toggleWarmup, saveError } = useActiveSession(sessionId);
+  const { state, update, toggleWarmup, changeSlot, saveError } = useActiveSession(sessionId);
+  const [dialog, setDialog] = useState<SlotDialogMode | null>(null);
   const [skipped, setSkipped] = useState<string[] | null>(null);
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
@@ -58,6 +60,15 @@ export function LogSession({ sessionId }: { sessionId: string }) {
     }
   }
 
+  async function submitSlotChange(exerciseName: string, spec: SlotSpec, scope: ChangeScope) {
+    const problem = slotProblem(spec);
+    if (problem) throw new Error(problem.charAt(0).toUpperCase() + problem.slice(1)); // before creating an exercise row for a typo
+    const exercise = await findOrCreateExercise(exerciseName);
+    await changeSlot({ slotId: dialog?.kind === 'swap' ? dialog.slot.slotId : undefined, exerciseId: exercise.id, spec, scope });
+    setDialog(null);
+    setProblems([]);
+  }
+
   function tryFinish() {
     const check = checkFinish(session, logs);
     if (check.problems.length) {
@@ -81,10 +92,13 @@ export function LogSession({ sessionId }: { sessionId: string }) {
 
       <ul class="list">
         {session.warmups && session.warmups.length > 0 && <WarmupCard warmups={session.warmups} toggle={toggleWarmup} />}
-        {session.plan.map((slot) => (
-          <ExerciseCard key={slot.slotId} slot={slot} logs={logs.filter((l) => l.slotId === slot.slotId)} update={update} />
-        ))}
+        {session.plan.map((slot) => {
+          const slotLogs = logs.filter((l) => l.slotId === slot.slotId);
+          // Keyed on set 1's row id, not the slot id: a swap keeps the slot id but issues new rows, and the card must start fresh.
+          return <ExerciseCard key={slotLogs[0]?.id ?? slot.slotId} slot={slot} logs={slotLogs} update={update} onSwap={() => setDialog({ kind: 'swap', slot })} />;
+        })}
       </ul>
+      <button type="button" class="btn btn-block" onClick={() => setDialog({ kind: 'add' })}>Add exercise</button>
 
       {saveError && <p class="error">{saveError}</p>}
       {problems.length > 0 && (
@@ -96,6 +110,7 @@ export function LogSession({ sessionId }: { sessionId: string }) {
         <button type="button" class="btn btn-primary btn-big" disabled={busy} onClick={tryFinish}>Finish</button>
       </div>
 
+      <SlotDialog mode={dialog} dayName={session.dayName} onCancel={() => setDialog(null)} onSubmit={submitSlotChange} />
       <ConfirmDialog
         open={skipped !== null}
         title="Finish without these?"
@@ -170,7 +185,12 @@ function WarmupCard({ warmups, toggle }: { warmups: WarmupLog[]; toggle: (id: st
   );
 }
 
-function ExerciseCard({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[]; update: (id: string, patch: SetLogPatch) => void }) {
+function changeText(c: SlotChange): string {
+  const what = c.kind === 'swap' ? `Swapped in for ${c.replaced}` : 'Added';
+  return `${what} · ${c.scope === 'session' ? 'this session only' : 'this and future sessions'}`;
+}
+
+function ExerciseCard({ slot, logs, update, onSwap }: { slot: PlannedSlot; logs: SetLog[]; update: (id: string, patch: SetLogPatch) => void; onSwap: () => void }) {
   const s = slot.suggestion;
   const beat = s.repTarget.kind === 'range' ? s.repTarget.beat : null;
   const rows = [...logs].sort((a, b) => a.setNumber - b.setNumber);
@@ -221,6 +241,7 @@ function ExerciseCard({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[
           {s.basis && (
             <p class="hint muted">Last set 1: {fmtLoad(s.basis.load)} × {s.basis.reps} @ {fmtRpe(s.basis.rpe)}</p>
           )}
+          {slot.change && <p class="hint small changed">{changeText(slot.change)}</p>}
           <div class="set-head"><span>Set</span><span>Load (lb)</span><span>Reps</span><span>RPE</span></div>
           {rows.map((log) => {
             const st = status(log);
@@ -256,6 +277,9 @@ function ExerciseCard({ slot, logs, update }: { slot: PlannedSlot; logs: SetLog[
               </div>
             );
           })}
+          <div class="card-foot">
+            <button type="button" class="btn btn-small btn-ghost" onClick={onSwap}>Swap exercise</button>
+          </div>
         </>
       )}
     </li>

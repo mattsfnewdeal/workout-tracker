@@ -10,6 +10,21 @@ export function toSlotParams(slot: Slot, exercise: Exercise): SlotParams {
     : { progression: 'double', repMin: slot.repMin ?? 6, repMax: slot.repMax ?? 8, ...common };
 }
 
+/** Snapshot one slot with a suggestion from the exercise's last completed sets. */
+export async function planSlot(slot: Slot, exercise: Exercise, d: WorkoutDB = db): Promise<PlannedSlot> {
+  const last = await getLastCompletedSets(slot.exerciseId, d);
+  const suggestion = suggest(toSlotParams(slot, exercise), last?.sets ?? null);
+  return {
+    slotId: slot.id,
+    exerciseId: slot.exerciseId,
+    exerciseName: exercise.name,
+    sets: slot.sets,
+    increment: exercise.loadIncrement,
+    ...(last?.session.finishedAt != null ? { lastSessionAt: last.session.finishedAt } : {}),
+    suggestion,
+  };
+}
+
 /** Join the program's day with each exercise's last completed sets to get suggestions. */
 export async function buildPlan(program: Program, dayIndex: number, d: WorkoutDB = db): Promise<PlannedSlot[]> {
   const day = program.days[dayIndex];
@@ -18,17 +33,7 @@ export async function buildPlan(program: Program, dayIndex: number, d: WorkoutDB
   for (const slot of day.slots) {
     const exercise = await d.exercises.get(slot.exerciseId);
     if (!exercise) continue;
-    const last = await getLastCompletedSets(slot.exerciseId, d);
-    const suggestion = suggest(toSlotParams(slot, exercise), last?.sets ?? null);
-    out.push({
-      slotId: slot.id,
-      exerciseId: slot.exerciseId,
-      exerciseName: exercise.name,
-      sets: slot.sets,
-      increment: exercise.loadIncrement,
-      lastSessionAt: last?.session.finishedAt,
-      suggestion,
-    });
+    out.push(await planSlot(slot, exercise, d));
   }
   return out;
 }

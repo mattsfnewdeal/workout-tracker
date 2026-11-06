@@ -223,9 +223,62 @@ await step('preloaded program: Tuesday/Thursday with checkbox warm-ups that pers
   assert(await page.getByRole('checkbox', { name: '90/90 hips' }).isChecked(), 'warm-up tick lost on reload');
   assert(await page.getByRole('checkbox', { name: /Underhand Scoop/ }).isChecked(), 'scoop tick lost on reload');
   assert(!(await page.getByRole('checkbox', { name: 'Open books' }).isChecked()), 'open books should be unticked');
+});
+
+await step('swap Squat → Leg Press for future Tuesdays; add Face Pull just for today; duplicates refused', async () => {
+  const squatCard = page.locator('li.card').nth(1);
+  await squatCard.getByRole('button', { name: 'Swap exercise' }).click();
+  const dlg = page.getByRole('dialog');
+  await dlg.getByText('Swap Squat').waitFor();
+  assert((await dlg.getByRole('radio', { name: 'Rep range' }).getAttribute('aria-checked')) === 'true', 'swap should inherit the rep range');
+  assert((await dlg.getByLabel('Sets').inputValue()) === '3' && (await dlg.getByLabel('Min reps').inputValue()) === '4' && (await dlg.getByLabel('Max reps').inputValue()) === '6', 'swap should inherit 3 × 4–6');
+  await dlg.getByLabel('Exercise name').fill('Leg Press');
+  await dlg.getByLabel(/This and future sessions/).check();
+  await shot('14-swap-dialog');
+  await dlg.getByRole('button', { name: 'Swap', exact: true }).click();
+  await squatCard.locator('.card-title', { hasText: 'Leg Press' }).waitFor();
+  const swappedText = await squatCard.innerText();
+  assert(swappedText.includes('Swapped in for Squat · this and future sessions'), swappedText);
+  assert((await squatCard.getByLabel('Set 1 load').inputValue()) === '', 'leg press should start with no load');
+
+  await page.getByRole('button', { name: 'Add exercise' }).click();
+  await dlg.getByText('Add an exercise').waitFor();
+  assert((await dlg.getByRole('radio', { name: 'Fixed reps' }).getAttribute('aria-checked')) === 'true', 'add should default to fixed reps');
+  await dlg.getByLabel('Exercise name').fill('Face Pull');
+  await dlg.getByRole('radio', { name: 'Rep range' }).click();
+  await dlg.getByLabel('Min reps').fill('12');
+  await dlg.getByLabel('Max reps').fill('15');
+  await dlg.getByRole('button', { name: 'Add', exact: true }).click();
+  const last = page.locator('li.card').last();
+  await last.locator('.card-title', { hasText: 'Face Pull' }).waitFor();
+  const addedText = await last.innerText();
+  assert(addedText.includes('3 × 12–15 @ 8') && addedText.includes('Added · this session only'), addedText);
+  assert((await text('.session-head p')).includes('0 of 7 exercises logged'), await text('.session-head p'));
+
+  await page.getByRole('button', { name: 'Add exercise' }).click();
+  await dlg.getByLabel('Exercise name').fill('db bench');
+  await dlg.getByRole('button', { name: 'Add', exact: true }).click();
+  await dlg.getByText('DB Bench is already in this session').waitFor();
+  await dlg.getByRole('button', { name: 'Cancel' }).click();
+  await shot('15-log-swapped');
+
+  await page.reload();
+  await page.locator('.card-title', { hasText: 'Leg Press' }).waitFor();
+  await page.locator('.card-title', { hasText: 'Face Pull' }).waitFor();
+  assert((await page.locator('.card-title', { hasText: 'Squat' }).count()) === 0, 'Squat came back after reload');
+
   await page.getByRole('button', { name: 'Abandon' }).first().click();
   await page.getByRole('button', { name: 'Abandon', exact: true }).last().click();
   await page.getByText('Next: Tuesday').waitFor();
+  const today = await page.locator('main').innerText();
+  assert(today.includes('Leg Press') && !today.includes('Squat') && !today.includes('Face Pull'), today);
+  await page.getByRole('link', { name: 'Program' }).click();
+  const tue = page.locator('section.card').nth(0);
+  await tue.locator('strong', { hasText: 'Leg Press' }).waitFor();
+  assert((await tue.locator('strong', { hasText: 'Squat' }).count()) === 0, 'Squat should have been replaced on Tuesday');
+  assert((await tue.getByLabel('Min reps').first().inputValue()) === '4', 'swapped slot should keep 4–6');
+  assert((await page.locator('strong', { hasText: 'Face Pull' }).count()) === 0, 'one-off Face Pull leaked into the program');
+  await shot('16-program-after-swap');
 });
 
 await step('import restores the backup and the 215 suggestion', async () => {
