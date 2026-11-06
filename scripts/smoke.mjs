@@ -107,6 +107,8 @@ await step('start Day A: loads start empty, set 1 copies down', async () => {
   assert((await rpeChip(0).inputValue()) === '7', 'RPE 7 should be kept');
   await pickRpe(1, '5.5'); // under 6 → stored as <6, 'easy' (blue)
   assert((await rpeChip(1).inputValue()) === '<6', `field should read <6, got ${await rpeChip(1).inputValue()}`);
+  await pickRpe(2, '6');
+  assert((await rpeChip(2).inputValue()) === '6', `6 is a real RPE and must read 6, got ${await rpeChip(2).inputValue()}`);
   await pickRpe(2, '7.3'); // snaps to the nearest half step
   assert((await rpeChip(2).inputValue()) === '7.5', `7.3 should snap to 7.5, got ${await rpeChip(2).inputValue()}`);
   await pickRpe(2, '12');

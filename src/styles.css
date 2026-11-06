@@ -171,9 +171,11 @@ input.num.rpe-in { font-size: 17px; }
 input.num.rpe-in.good { background: rgba(52, 199, 89, 0.18); border-color: var(--ok); color: var(--ok); }
 input.num.rpe-in.easy { background: rgba(79, 140, 255, 0.18); border-color: var(--accent); color: #8db4ff; }
 input.num.rpe-in.hard { background: rgba(255, 176, 32, 0.18); border-color: var(--warn); color: var(--warn); }
-.ss-link { display: flex; align-items: center; gap: 10px; margin: -6px 18px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.ss-link::before, .ss-link::after { content: ''; flex: 1; border-top: 1px dashed rgba(79, 140, 255, 0.5); }
-.card.ss-member { border-color: rgba(79, 140, 255, 0.35); }
+.ss-group { background: var(--bg-elev); border: 1.5px solid rgba(79, 140, 255, 0.6); border-radius: var(--radius); }
+.ss-list { gap: 0; }
+.ss-list > .card.ss-member { border: 0; background: transparent; border-radius: 0; }
+.ss-link { display: flex; align-items: center; gap: 10px; margin: 0 18px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.ss-link::before, .ss-link::after { content: ''; flex: 1; border-top: 1px solid rgba(79, 140, 255, 0.5); }
 
 .tabbar {
   position: fixed;

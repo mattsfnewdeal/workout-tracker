@@ -91,12 +91,19 @@ export function Today() {
               {supersetGroups(slots).map((group) => {
                 const labels = orderLabels(slots);
                 const labelOf = (s: PlannedSlot) => labels[slots.indexOf(s)];
-                return group.map((s, i) => (
-                  <Fragment key={s.slotId}>
-                    {i > 0 && <li class="ss-link">superset</li>}
-                    <li class={`card ${group.length > 1 ? 'ss-member' : ''}`}><SlotBody slot={s} tag={labelOf(s)} /></li>
-                  </Fragment>
-                ));
+                if (group.length === 1) return <li key={group[0].slotId} class="card"><SlotBody slot={group[0]} tag={labelOf(group[0])} /></li>;
+                return (
+                  <li key={group[0].slotId} class="ss-group">
+                    <ul class="list ss-list">
+                      {group.map((s, i) => (
+                        <Fragment key={s.slotId}>
+                          {i > 0 && <li class="ss-link">superset</li>}
+                          <li class="card ss-member"><SlotBody slot={s} tag={labelOf(s)} /></li>
+                        </Fragment>
+                      ))}
+                    </ul>
+                  </li>
+                );
               })}
             </ul>
           )}

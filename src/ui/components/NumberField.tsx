@@ -35,7 +35,7 @@ export function NumberField({ value, onChange, mode = 'decimal', placeholder, cl
   }, [value]);
 
   function parse(s: string): number | undefined {
-    const t = s.trim();
+    const t = s.trim().replace(',', '.'); // comma-locale keypads
     if (t === '' || t === '.' || t === '-') return undefined;
     let n: number | undefined;
     if (customParse) n = customParse(t);

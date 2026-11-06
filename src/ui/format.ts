@@ -1,4 +1,4 @@
-import type { RepTarget, Suggestion } from '../engine';
+import { RPE_MIN, type RepTarget, type Suggestion } from '../engine';
 
 export function fmtLoad(n: number): string {
   if (Number.isInteger(n)) return String(n);
@@ -11,10 +11,10 @@ export function fmtLoadBw(load: number, bodyweight?: boolean): string {
   return load > 0 ? `BW +${fmtLoad(load)}` : 'BW';
 }
 
-/** "8", "8.5", "<6" for anything under the chart's 6.5 floor, "—" when none. */
+/** "8", "8.5", "<6" for anything under RPE 6 (the stored "<6" sentinel), "—" when none. */
 export function fmtRpe(r: number | null | undefined): string {
   if (r == null) return '—';
-  return r < 6.5 ? '<6' : String(r);
+  return r < RPE_MIN ? '<6' : String(r);
 }
 
 export function fmtRepTarget(t: RepTarget): string {

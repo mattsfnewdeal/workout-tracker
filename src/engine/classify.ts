@@ -1,3 +1,4 @@
+import { RPE_MIN } from './rpeTable';
 import type { RepTarget } from './types';
 
 /**
@@ -18,6 +19,7 @@ export function classifySet(target: RepTarget, targetRpe: number | null, reps: n
   if (reps == null) return 'pending';
   if (!repsHitTarget(target, reps)) return 'hard';
   if (rpe == null || targetRpe == null) return 'good';
+  if (rpe < RPE_MIN) return 'easy'; // "<6": easier than any goal
   if (rpe > targetRpe + 1) return 'hard';
   if (rpe < targetRpe - 1) return 'easy';
   return 'good';

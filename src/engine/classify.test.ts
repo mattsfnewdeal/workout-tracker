@@ -35,3 +35,13 @@ describe('classifySet', () => {
     expect(classifySet(fixed5, 6.5, 5, 8)).toBe('hard');
   });
 });
+
+describe('"<6"', () => {
+  it('is easy against any goal, including 6', () => {
+    const fixed = { kind: 'fixed' as const, reps: 5 };
+    expect(classifySet(fixed, 6, 5, 5)).toBe('easy');
+    expect(classifySet(fixed, 8, 5, 5)).toBe('easy');
+    expect(classifySet(fixed, 6, 5, 6)).toBe('good');
+    expect(classifySet(fixed, null, 5, 5)).toBe('good'); // no goal: reps alone
+  });
+});

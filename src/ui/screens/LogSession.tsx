@@ -113,13 +113,20 @@ export function LogSession({ sessionId }: { sessionId: string }) {
             onSwap: (slot: PlannedSlot) => setDialog({ kind: 'swap', slot }),
             toggleWarmupSet: (slot: PlannedSlot, i: number, done: boolean) => toggleWarmupSet(slot.slotId, i, done),
           };
-          // A superset is ordinary cards joined by a "superset" link; the order labels (5A / 5B) carry the pairing.
-          return group.map((slot, i) => (
-            <Fragment key={`${key}:${slot.slotId}`}>
-              {i > 0 && <li class="ss-link" aria-label={`${labelOf(group[i - 1])} and ${labelOf(slot)} are a superset`}>superset</li>}
-              <ExerciseCard slot={slot} label={labelOf(slot)} named={group.length > 1} member={group.length > 1} logs={rowsOf(slot)} {...props} />
-            </Fragment>
-          ));
+          if (group.length === 1) return <ExerciseCard key={key} slot={group[0]} label={labelOf(group[0])} logs={rowsOf(group[0])} {...props} />;
+          // A superset: the exercises' cards inside one blue border, with a "superset" divider between them.
+          return (
+            <li key={key} class="ss-group" aria-label={`Superset ${group.map(labelOf).join(' / ')}`}>
+              <ul class="list ss-list">
+                {group.map((slot, i) => (
+                  <Fragment key={slot.slotId}>
+                    {i > 0 && <li class="ss-link">superset</li>}
+                    <ExerciseCard slot={slot} label={labelOf(slot)} named member logs={rowsOf(slot)} {...props} />
+                  </Fragment>
+                ))}
+              </ul>
+            </li>
+          );
         })}
       </ul>
       <button type="button" class="btn btn-block" onClick={() => setDialog({ kind: 'add' })}>Add exercise</button>

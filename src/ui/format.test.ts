@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Suggestion } from '../engine';
-import { fmtLoad, fmtRepTarget, fmtSuggestion } from './format';
+import { fmtLoad, fmtRepTarget, fmtRpe, fmtSuggestion } from './format';
 
 const base = (over: Partial<Suggestion>): Suggestion => ({
   load: null, repTarget: { kind: 'fixed', reps: 5 }, targetRpe: 8, confidence: 'normal', bigJump: false, reason: 'first-session', e1rm: null, basis: null, ...over,
@@ -26,5 +26,11 @@ describe('fmtLoad / fmtRepTarget', () => {
   it('uses an en dash for ranges', () => {
     expect(fmtRepTarget({ kind: 'range', min: 8, max: 12, beat: null })).toBe('8–12');
     expect(fmtRepTarget({ kind: 'fixed', reps: 3 })).toBe('3');
+  });
+});
+
+describe('fmtRpe', () => {
+  it('shows 6 and up as typed, under 6 as <6, none as —', () => {
+    expect([fmtRpe(5), fmtRpe(6), fmtRpe(6.5), fmtRpe(8.5), fmtRpe(10), fmtRpe(null), fmtRpe(undefined)]).toEqual(['<6', '6', '6.5', '8.5', '10', '—', '—']);
   });
 });
