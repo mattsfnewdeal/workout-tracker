@@ -20,9 +20,10 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 const waitValue = async (loc, want, ms = 2000) => { const t = Date.now(); for (;;) { const v = await loc.inputValue(); if (v === want) return; if (Date.now() - t > ms) throw new Error(`value "${v}" != "${want}"`); await page.waitForTimeout(50); } };
 const cardText = () => text('li.card');
 const setRow = (n) => page.locator('.set-row').nth(n);
-const rpeChip = (row) => setRow(row).getByRole('button', { name: /^Set \d+ RPE(,|$)/ });
-const rpeBar = () => page.locator('.rpe-bar');
-const pickRpe = async (row, value) => { await rpeChip(row).click(); await rpeBar().getByRole('radio', { name: value, exact: true }).click(); };
+const rpeChip = (row) => setRow(row).getByLabel(/^Set \d+ RPE$/);
+/** Type an RPE and leave the field, as a lifter would; the field then reads the normalised value. */
+const typeRpe = async (field, value) => { await field.fill(value); await field.press('Tab'); };
+const pickRpe = (row, value) => typeRpe(rpeChip(row), value);
 const activeLabel = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? null);
 
 await step('fresh app shows empty state', async () => {
@@ -99,14 +100,19 @@ await step('start Day A: loads start empty, set 1 copies down', async () => {
   await page.keyboard.press('Enter');
   assert((await activeLabel()) === 'Set 1 reps', `Enter on load should focus reps, got ${await activeLabel()}`);
   await page.keyboard.press('Enter');
-  await rpeBar().waitFor();
-  assert((await rpeBar().innerText()).includes('Set 1 · RPE'), 'bar should name the set');
-  assert((await page.locator('.set-row .rpe').count()) === 0, 'no inline picker inside the row');
-  await rpeBar().getByRole('radio', { name: '7', exact: true }).click();
-  assert((await rpeBar().count()) === 0, 'bar should close after a pick');
-  assert((await activeLabel()) === 'Set 2 reps', `after picking, focus should move to set 2's reps (its load is filled), got ${await activeLabel()}`);
-  await pickRpe(1, '<6'); // under the chart → 'easy' (blue)
-  assert((await rpeChip(1).innerText()).trim() === '<6', 'chip should show <6');
+  assert((await activeLabel()) === 'Set 1 RPE', `Enter on reps should focus RPE, got ${await activeLabel()}`);
+  await page.keyboard.type('7');
+  await page.keyboard.press('Enter');
+  assert((await activeLabel()) === 'Set 2 reps', `Enter on RPE should move to set 2's reps (its load is filled), got ${await activeLabel()}`);
+  assert((await rpeChip(0).inputValue()) === '7', 'RPE 7 should be kept');
+  await pickRpe(1, '5.5'); // under 6 → stored as <6, 'easy' (blue)
+  assert((await rpeChip(1).inputValue()) === '<6', `field should read <6, got ${await rpeChip(1).inputValue()}`);
+  await pickRpe(2, '7.3'); // snaps to the nearest half step
+  assert((await rpeChip(2).inputValue()) === '7.5', `7.3 should snap to 7.5, got ${await rpeChip(2).inputValue()}`);
+  await pickRpe(2, '12');
+  assert((await rpeChip(2).inputValue()) === '10', '12 should cap at 10');
+  await pickRpe(2, '');
+  assert((await rpeChip(2).inputValue()) === '', 'clearing the field clears the RPE');
   await shot('04-log');
   assert((await page.locator('.set-row.easy').count()) === 1 && (await page.locator('.set-row.good').count()) === 2, 'expected 2 good rows and 1 easy row');
 });
@@ -117,7 +123,7 @@ await step('session survives a reload and shows Resume on Today', async () => {
   await page.getByLabel('Set 1 reps').waitFor();
   assert((await page.getByLabel('Set 1 reps').inputValue()) === '5', 'reps lost');
   assert((await page.getByLabel('Set 3 load').inputValue()) === '225', 'copied-down load not persisted');
-  assert((await rpeChip(0).innerText()).trim() === '7', 'rpe lost');
+  assert((await rpeChip(0).inputValue()) === '7' && (await rpeChip(1).inputValue()) === '<6', 'rpe lost');
   await page.goto(BASE + '#/');
   await page.getByText('Day A in progress').waitFor();
   await shot('05-today-resume');
@@ -308,8 +314,7 @@ await step('Chin is bodyweight: logs with no load, shows BW in History, holds at
   assert((await chin.getByLabel('Set 1 load').getAttribute('placeholder')) === 'BW', 'bodyweight rows should show BW');
   assert((await chin.innerText()).includes('leave the load empty for bodyweight'), await chin.innerText());
   for (const n of [1, 2, 3]) await chin.getByLabel(`Set ${n} reps`).fill('8');
-  await chin.getByRole('button', { name: /^Set 1 RPE/ }).click();
-  await rpeBar().getByRole('radio', { name: '8', exact: true }).click();
+  await typeRpe(chin.getByLabel('Set 1 RPE'), '8');
   assert((await chin.locator('.set-row.good').count()) === 3, 'chin sets should be green');
   await chin.locator('.card-head').click();
   assert((await chin.locator('.summary').innerText()).includes('BW × 8 @ 8'), await chin.locator('.summary').innerText());
@@ -381,50 +386,47 @@ await step('3x Lifting: supersets, linear main lifts, intro set counts', async (
   await page.getByRole('link', { name: 'Today' }).click();
   await page.getByText('Next: Day 1').waitFor();
   const today = await page.locator('main').innerText();
-  for (const t of ['1Back Squat', '2Bench Press', 'Superset · alternate sets', '5ALateral Raise', '5BFace Pull', '6Calf Raise', '2 sets · intro (usually 4)', '2 sets · intro (usually 3)']) assert(today.includes(t), `missing "${t}" in Today: ${today}`);
+  for (const t of ['1Back Squat', '2Bench Press', '5ALateral Raise', 'SUPERSET', '5BFace Pull', '6Calf Raise', '2 sets · intro (usually 4)', '2 sets · intro (usually 3)']) assert(today.includes(t), `missing "${t}" in Today: ${today}`);
+  assert((await page.locator('li.ss-link').count()) === 1, 'Today should link the superset cards');
   const bs = await page.locator('li.card', { hasText: 'Back Squat' }).first().innerText();
   assert(bs.includes('5 reps') && !bs.includes('@'), `linear main lift must not show an RPE goal: ${bs}`);
   await shot('21-today-3x');
 
   await page.getByRole('button', { name: 'Start Day 1' }).click();
   await page.waitForURL(/#\/log\//);
-  const ss = page.locator('li.card', { hasText: '5A / 5BLateral Raise · Face Pull' });
-  await ss.waitFor();
-  assert((await ss.locator('.ss-block').count()) === 2, 'one block per exercise in the superset');
-  assert((await ss.locator('.ss-block').nth(0).locator('.set-no').allInnerTexts()).map((t) => t.replace(/\s*next\s*/i, '').trim()).join('|') === '1|2', 'each block numbers its own sets');
-  const nextName = () => ss.locator('.set-row.is-next input').first().getAttribute('aria-label');
-  assert((await nextName()) === 'Lateral Raise set 1 load', `5A set 1 should be next first, got ${await nextName()}`);
+  const lr = page.locator('li.card', { hasText: '5ALateral Raise' });
+  const fp = page.locator('li.card', { hasText: '5BFace Pull' });
+  await lr.waitFor();
+  assert((await page.locator('li.ss-link').count()) === 1 && (await page.locator('li.card.ss-member').count()) === 2, 'the superset should be two linked cards');
+  assert((await lr.locator('.set-no').allInnerTexts()).join('|') === '1|2', 'each card numbers its own sets');
   assert((await page.locator('li.card', { hasText: 'Back Squat' }).first().locator('.order-tag').innerText()) === '1', 'Back Squat should be exercise 1');
-  assert((await ss.getByRole('button', { name: 'Swap 5B' }).count()) === 1, 'swap button should use the order label');
-  await ss.getByLabel('Lateral Raise set 1 load').fill('15');
-  await waitValue(ss.getByLabel('Lateral Raise set 2 load'), '15');
-  assert((await ss.getByLabel('Face Pull set 1 load').inputValue()) === '', 'copy-down must stay inside its own exercise');
-  await ss.getByLabel('Face Pull set 1 load').fill('20');
-  await waitValue(ss.getByLabel('Face Pull set 2 load'), '20');
-  await page.locator('li.card', { hasText: 'Back Squat' }).first().getByRole('button', { name: /^Set 2 RPE/ }).click();
-  await rpeBar().waitFor();
-  await ss.getByLabel('Lateral Raise set 1 reps').fill('15');
-  assert((await rpeBar().count()) === 0, 'focusing another field should close an open RPE bar');
-  assert((await nextName()) === 'Face Pull set 1 load', `after 5A set 1, 5B set 1 should be next, got ${await nextName()}`);
-  await ss.getByLabel('Face Pull set 1 reps').fill('15');
-  assert((await nextName()) === 'Lateral Raise set 2 load', `then 5A set 2, got ${await nextName()}`);
-  await ss.getByLabel('Lateral Raise set 2 reps').fill('15');
-  await ss.getByLabel('Face Pull set 2 reps').fill('15');
-  assert((await ss.locator('.set-row.is-next').count()) === 0, 'nothing is next once every set is logged');
-  await ss.getByRole('button', { name: /^Lateral Raise set 1 RPE/ }).click();
-  await rpeBar().getByRole('radio', { name: '8', exact: true }).click();
-  await ss.getByRole('button', { name: /^Face Pull set 1 RPE/ }).click();
-  await rpeBar().getByRole('radio', { name: '8', exact: true }).click();
-  assert((await ss.locator('.set-row.good').count()) === 4, 'all four superset rows should be green');
-  assert((await ss.locator('.pill').first().innerText()).includes('4/4'), 'superset pill should count all sets');
+  await lr.getByLabel('Lateral Raise set 1 load').fill('15');
+  await waitValue(lr.getByLabel('Lateral Raise set 2 load'), '15');
+  assert((await fp.getByLabel('Face Pull set 1 load').inputValue()) === '', 'copy-down must stay inside its own exercise');
+  await fp.getByLabel('Face Pull set 1 load').fill('20');
+  await waitValue(fp.getByLabel('Face Pull set 2 load'), '20');
+  // Enter on 5A set 1's RPE walks the superset order: 5B set 1 next (its load is filled → reps)
+  await lr.getByLabel('Lateral Raise set 1 reps').fill('15');
+  await lr.getByLabel('Lateral Raise set 1 RPE').focus();
+  await page.keyboard.type('8');
+  await page.keyboard.press('Enter');
+  assert((await activeLabel()) === 'Face Pull set 1 reps', `after 5A set 1, 5B set 1 should be next, got ${await activeLabel()}`);
+  await page.keyboard.type('15');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('8');
+  await page.keyboard.press('Enter');
+  assert((await activeLabel()) === 'Lateral Raise set 2 reps', `then 5A set 2, got ${await activeLabel()}`);
+  await lr.getByLabel('Lateral Raise set 2 reps').fill('15');
+  await fp.getByLabel('Face Pull set 2 reps').fill('15');
+  assert((await lr.locator('.set-row.good').count()) === 2 && (await fp.locator('.set-row.good').count()) === 2, 'all four superset rows should be green');
+  assert((await lr.locator('.pill').first().innerText()).includes('✓') && (await fp.locator('.pill').first().innerText()).includes('✓'), 'both cards should be done');
 
   const squat = page.locator('li.card', { hasText: 'Back Squat' }).first();
   assert((await squat.innerText()).includes('3 × 5') && !(await squat.innerText()).includes('@ 8'), 'linear pill should have no RPE goal');
   await squat.getByLabel('Set 1 load').fill('135');
   await waitValue(squat.getByLabel('Set 3 load'), '135');
   for (const n of [1, 2, 3]) await squat.getByLabel(`Set ${n} reps`).fill('5');
-  await squat.getByRole('button', { name: /^Set 1 RPE/ }).click();
-  await rpeBar().getByRole('radio', { name: '9.5', exact: true }).click();
+  await typeRpe(squat.getByLabel('Set 1 RPE'), '9.5');
   assert((await squat.locator('.set-row.good').count()) === 3, 'linear sets colour on reps alone, so RPE 9.5 is still green');
   await shot('22-log-3x');
   await page.getByRole('button', { name: 'Finish' }).click();
@@ -440,8 +442,10 @@ await step('3x Lifting: supersets, linear main lifts, intro set counts', async (
   await page.getByText('Next: Day 1').waitFor();
   const sq = await page.locator('li.card', { hasText: 'Back Squat' }).first().innerText();
   for (const t of ['140 × 5', 'Every set hit the target — add one increment', 'Warm-up sets: 85 × 5', 'Last set 1: 135 × 5 @ 9.5']) assert(sq.includes(t), `missing "${t}" in: ${sq}`);
-  const lr = await page.locator('li.card', { hasText: 'Lateral Raise' }).first().innerText();
-  for (const t of ['15 × 12–20 @ 8', '20 × 12–20 @ 8', 'get every set to the top of the range']) assert(lr.includes(t), `missing "${t}" in: ${lr}`);
+  const lrText = await page.locator('li.card', { hasText: 'Lateral Raise' }).first().innerText();
+  for (const t of ['15 × 12–20 @ 8', 'get every set to the top of the range']) assert(lrText.includes(t), `missing "${t}" in: ${lrText}`);
+  const fpText = await page.locator('li.card', { hasText: 'Face Pull' }).first().innerText();
+  assert(fpText.includes('20 × 12–20 @ 8'), `missing Face Pull hold in: ${fpText}`);
   await shot('23-today-3x-progressed');
 });
 

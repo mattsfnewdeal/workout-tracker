@@ -19,7 +19,8 @@ describe('e1rm', () => {
   it('refuses sets over 12 reps or with a bad RPE', () => {
     expect(e1rm(100, 13, 8)).toBeNull();
     expect(e1rm(100, 0, 8)).toBeNull();
-    expect(e1rm(100, 5, 6)).toBeNull();
+    expect(e1rm(100, 5, 5.5)).toBeNull();
+    expect(e1rm(100, 5, 6)).toBeCloseTo(100 / 0.762, 1); // 9 effective reps
     expect(e1rm(100, 5, 8.25)).toBeNull();
     expect(e1rm(0, 5, 8)).toBeNull();
   });

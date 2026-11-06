@@ -15,24 +15,37 @@ interface Props {
   onEnter?: () => void;
   enterKeyHint?: 'next' | 'done';
   onFocus?: () => void;
+  /** Replace the default number parsing (e.g. to accept "<6"). */
+  parse?: (s: string) => number | undefined;
+  /** Snap a parsed value (e.g. to half steps) before it is committed. */
+  normalize?: (n: number) => number;
+  /** How the committed value reads when the field isn't focused (e.g. 5 → "<6"). */
+  format?: (n: number) => string;
 }
 
 /** Text input with the iOS numeric keypad. Keeps partial entries ("22.") while typing. */
-export function NumberField({ value, onChange, mode = 'decimal', placeholder, class: cls, label, min, disabled, id, onEnter, enterKeyHint = 'done', onFocus }: Props) {
-  const [text, setText] = useState(value == null ? '' : String(value));
+export function NumberField({ value, onChange, mode = 'decimal', placeholder, class: cls, label, min, disabled, id, onEnter, enterKeyHint = 'done', onFocus, parse: customParse, normalize, format }: Props) {
+  const show = (v: number | undefined) => (v == null ? '' : format ? format(v) : String(v));
+  const [text, setText] = useState(show(value));
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
     const parsed = parse(text);
-    if (parsed !== value) setText(value == null ? '' : String(value));
+    if (parsed !== value) setText(focused && value != null ? String(value) : show(value));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   function parse(s: string): number | undefined {
     const t = s.trim();
     if (t === '' || t === '.' || t === '-') return undefined;
-    const n = mode === 'numeric' ? parseInt(t, 10) : parseFloat(t);
-    if (!Number.isFinite(n)) return undefined;
-    if (min != null && n < min) return min;
-    return n;
+    let n: number | undefined;
+    if (customParse) n = customParse(t);
+    else {
+      n = mode === 'numeric' ? parseInt(t, 10) : parseFloat(t);
+      if (!Number.isFinite(n)) return undefined;
+    }
+    if (n == null) return undefined;
+    if (min != null && n < min) n = min;
+    return normalize ? normalize(n) : n;
   }
 
   return (
@@ -53,8 +66,8 @@ export function NumberField({ value, onChange, mode = 'decimal', placeholder, cl
         setText(s);
         onChange(parse(s));
       }}
-      onBlur={() => setText(value == null ? '' : String(value))}
-      onFocus={(e) => { e.currentTarget.select(); onFocus?.(); }}
+      onBlur={() => { setFocused(false); setText(show(value)); }}
+      onFocus={(e) => { setFocused(true); e.currentTarget.select(); onFocus?.(); }}
       onKeyDown={(e) => {
         if (e.key !== 'Enter' || !onEnter) return;
         e.preventDefault();

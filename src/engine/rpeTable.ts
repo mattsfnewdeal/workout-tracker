@@ -4,12 +4,19 @@
  * Verified 2026-11-03 against two independent reproductions of the chart.
  */
 
-export const RPE_MIN = 6.5;
+export const RPE_MIN = 6;
 export const RPE_MAX = 10;
 export const RPE_STEP = 0.5;
 export const DEFAULT_TARGET_RPE = 8;
-/** Logged when a set felt easier than the chart's floor ("<6"): below RPE_MIN, so never rated for an e1RM; shows as "<6". */
+/** Logged when a set felt easier than RPE 6 ("<6"): below RPE_MIN, so never rated for an e1RM; shows as "<6". */
 export const RPE_BELOW_6 = 5;
+
+/** A typed RPE as stored: anything under 6 is "<6"; otherwise the nearest half step, capped at 10. */
+export function toLoggedRpe(n: number): number {
+  if (!Number.isFinite(n)) return RPE_BELOW_6;
+  if (n < RPE_MIN) return RPE_BELOW_6;
+  return Math.min(RPE_MAX, Math.round(n * 2) / 2);
+}
 /** Visual band for the RPE picker when no slot goal is given; set colouring on the log screen is goal-relative (see classify.ts). */
 export const WORKING_RPE_MIN = 7;
 export const WORKING_RPE_MAX = 9;

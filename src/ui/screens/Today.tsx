@@ -1,3 +1,4 @@
+import { Fragment } from 'preact';
 import { useState } from 'preact/hooks';
 import { reasonText } from '../../engine';
 import { getActiveProgram, getInProgressSession } from '../../db/queries';
@@ -90,18 +91,12 @@ export function Today() {
               {supersetGroups(slots).map((group) => {
                 const labels = orderLabels(slots);
                 const labelOf = (s: PlannedSlot) => labels[slots.indexOf(s)];
-                return group.length === 1 ? (
-                  <li key={group[0].slotId} class="card"><SlotBody slot={group[0]} tag={labelOf(group[0])} /></li>
-                ) : (
-                  <li key={group[0].slotId} class="card">
-                    <div class="muted small" style="margin-bottom:6px">Superset · alternate sets</div>
-                    {group.map((s, i) => (
-                      <div key={s.slotId} class={i > 0 ? 'ss-divider' : ''}>
-                        <SlotBody slot={s} tag={labelOf(s)} />
-                      </div>
-                    ))}
-                  </li>
-                );
+                return group.map((s, i) => (
+                  <Fragment key={s.slotId}>
+                    {i > 0 && <li class="ss-link">superset</li>}
+                    <li class={`card ${group.length > 1 ? 'ss-member' : ''}`}><SlotBody slot={s} tag={labelOf(s)} /></li>
+                  </Fragment>
+                ));
               })}
             </ul>
           )}

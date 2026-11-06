@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cutoff, isOutsideWorkingRange, isValidRpe, pct, rpeValues } from './rpeTable';
+import { cutoff, isOutsideWorkingRange, isValidRpe, pct, rpeValues, toLoggedRpe } from './rpeTable';
 
 /** Published Tuchscherer/RTS chart: rows = RPE, columns = reps 1..12, values = %1RM. */
 const GRID: Record<string, number[]> = {
@@ -42,13 +42,21 @@ describe('pct', () => {
 });
 
 describe('rpe helpers', () => {
-  it('accepts 6.5–10 in half steps only', () => {
-    expect(rpeValues()).toEqual([6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]);
+  it('accepts 6–10 in half steps only', () => {
+    expect(rpeValues()).toEqual([6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10]);
     expect(isValidRpe(8)).toBe(true);
     expect(isValidRpe(8.5)).toBe(true);
-    expect(isValidRpe(6)).toBe(false);
+    expect(isValidRpe(6)).toBe(true);
+    expect(isValidRpe(5.5)).toBe(false);
+    expect(isValidRpe(5)).toBe(false);
     expect(isValidRpe(10.5)).toBe(false);
     expect(isValidRpe(8.25)).toBe(false);
+  });
+
+  it('normalises a typed RPE: <6 below 6, half steps, capped at 10', () => {
+    expect([toLoggedRpe(5.9), toLoggedRpe(0), toLoggedRpe(-1), toLoggedRpe(NaN)]).toEqual([5, 5, 5, 5]);
+    expect([toLoggedRpe(6), toLoggedRpe(6.2), toLoggedRpe(6.3), toLoggedRpe(7.75), toLoggedRpe(8.5)]).toEqual([6, 6, 6.5, 8, 8.5]);
+    expect([toLoggedRpe(10), toLoggedRpe(11), toLoggedRpe(9.76)]).toEqual([10, 10, 10]);
   });
 
   it('flags sets outside RPE 7–9', () => {
