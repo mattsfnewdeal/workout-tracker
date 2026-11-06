@@ -160,14 +160,14 @@ select {
 .warmup-set input[type=checkbox] { width: 20px; height: 20px; margin: 0; accent-color: var(--ok); }
 .warmup-set.done { border-color: rgba(52, 199, 89, 0.5); color: var(--muted); }
 .warmup-set.done span { text-decoration: line-through; }
-.ss-tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--accent); background: rgba(79, 140, 255, 0.16); border-radius: 6px; padding: 1px 5px; margin-right: 6px; vertical-align: 2px; }
+.order-tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--accent); background: rgba(79, 140, 255, 0.16); border-radius: 6px; padding: 1px 5px; margin-right: 6px; vertical-align: 2px; }
 .ss-divider { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
 .ss-block { margin-top: 14px; }
 .ss-block:first-of-type { margin-top: 10px; }
 .ss-name { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-weight: 650; font-size: 16px; }
 .set-head.ss, .set-row.ss { grid-template-columns: 54px 1fr 1fr 76px; }
 .set-row.ss .set-no { text-align: left; white-space: nowrap; }
-.set-row.ss .set-no .ss-tag { margin-right: 4px; }
+.set-row.ss .set-no .order-tag { margin-right: 4px; }
 .card-foot { display: flex; justify-content: flex-end; margin: 14px -10px -10px 0; }
 .hint.changed { color: var(--accent); }
 .sum { white-space: nowrap; }

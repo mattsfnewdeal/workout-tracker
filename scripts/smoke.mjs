@@ -369,17 +369,19 @@ await step('3x Lifting: supersets, linear main lifts, intro set counts', async (
   await page.getByRole('link', { name: 'Today' }).click();
   await page.getByText('Next: Day 1').waitFor();
   const today = await page.locator('main').innerText();
-  for (const t of ['Back Squat', '5 reps\n', 'Superset · alternate sets', 'A1', 'Lateral Raise', 'A2', 'Face Pull', '2 sets · intro (usually 4)', '2 sets · intro (usually 3)']) assert(today.includes(t), `missing "${t}" in Today: ${today}`);
+  for (const t of ['1Back Squat', '2Bench Press', 'Superset · alternate sets', '5ALateral Raise', '5BFace Pull', '6Calf Raise', '2 sets · intro (usually 4)', '2 sets · intro (usually 3)']) assert(today.includes(t), `missing "${t}" in Today: ${today}`);
   const bs = await page.locator('li.card', { hasText: 'Back Squat' }).first().innerText();
   assert(bs.includes('5 reps') && !bs.includes('@'), `linear main lift must not show an RPE goal: ${bs}`);
   await shot('21-today-3x');
 
   await page.getByRole('button', { name: 'Start Day 1' }).click();
   await page.waitForURL(/#\/log\//);
-  const ss = page.locator('li.card', { hasText: 'A1 Lateral Raise · A2 Face Pull' });
+  const ss = page.locator('li.card', { hasText: '5A / 5BLateral Raise · Face Pull' });
   await ss.waitFor();
   const setNos = await ss.locator('.set-no').allInnerTexts();
-  assert(setNos.join('|') === 'A11|A21|A12|A22', `rounds should interleave A1/A2: ${setNos.join('|')}`);
+  assert(setNos.join('|') === '5A1|5B1|5A2|5B2', `rounds should interleave 5A/5B: ${setNos.join('|')}`);
+  assert((await page.locator('li.card', { hasText: 'Back Squat' }).first().locator('.order-tag').innerText()) === '1', 'Back Squat should be exercise 1');
+  assert((await ss.getByRole('button', { name: 'Swap 5B' }).count()) === 1, 'swap button should use the order label');
   await ss.getByLabel('Lateral Raise set 1 load').fill('15');
   await waitValue(ss.getByLabel('Lateral Raise set 2 load'), '15');
   assert((await ss.getByLabel('Face Pull set 1 load').inputValue()) === '', 'copy-down must stay inside its own exercise');

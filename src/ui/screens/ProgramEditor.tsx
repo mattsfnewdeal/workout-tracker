@@ -9,7 +9,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { NumberField } from '../components/NumberField';
 import { SlotFields } from '../components/SlotFields';
 import { fmtDate, fmtLoad } from '../format';
-import { introEndsAt } from '../../state/plan';
+import { introEndsAt, orderLabels } from '../../state/plan';
 
 type NewSource = 'empty' | 'copy' | `template:${number}`;
 const SOURCES: [NewSource, string][] = [
@@ -341,6 +341,7 @@ function DayEditor({ day, index, count, exercises, showIntro, onChange, onMove, 
         <SlotEditor
           key={slot.id}
           slot={slot}
+          label={orderLabels(day.slots)[si]}
           exercise={exercises.find((e) => e.id === slot.exerciseId)}
           index={si}
           count={day.slots.length}
@@ -376,20 +377,21 @@ interface SlotProps {
   exercise: Exercise | undefined;
   index: number;
   count: number;
+  label: string;
   showIntro: boolean;
   onChange: (s: Slot) => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
 }
 
-function SlotEditor({ slot, exercise, index, count, showIntro, onChange, onMove, onDelete }: SlotProps) {
+function SlotEditor({ slot, exercise, index, count, label, showIntro, onChange, onMove, onDelete }: SlotProps) {
   const keyReps = slot.progression === 'single' ? slot.targetReps : slot.repMin;
   const offChart = slot.rule !== 'linear' && keyReps != null && keyReps + (10 - (slot.targetRpe ?? 8)) > MAX_EFFECTIVE_REPS;
 
   return (
     <div class="card" style="margin-top:10px; background: var(--bg)">
       <div class="row gap">
-        <strong class="grow">{exercise?.name ?? 'Unknown exercise'}</strong>
+        <strong class="grow"><span class="order-tag">{label}</span>{exercise?.name ?? 'Unknown exercise'}</strong>
         <button type="button" class="btn btn-small btn-icon" disabled={index === 0} onClick={() => onMove(-1)} aria-label="Move up">↑</button>
         <button type="button" class="btn btn-small btn-icon" disabled={index === count - 1} onClick={() => onMove(1)} aria-label="Move down">↓</button>
         <button type="button" class="btn btn-small btn-icon" onClick={onDelete} aria-label="Remove">✕</button>
@@ -402,7 +404,7 @@ function SlotEditor({ slot, exercise, index, count, showIntro, onChange, onMove,
             aria-label={`${exercise?.name ?? 'Exercise'} superset with the exercise above`}
             onChange={(e) => { const next = { ...slot }; if (e.currentTarget.checked) next.supersetWithPrev = true; else delete next.supersetWithPrev; onChange(next); }}
           />
-          <span class="small">Superset with the exercise above (A1 / A2)</span>
+          <span class="small">Superset with the exercise above (5A / 5B)</span>
         </label>
       )}
       <SlotFields slot={slot} onChange={onChange} showIntro={showIntro} />

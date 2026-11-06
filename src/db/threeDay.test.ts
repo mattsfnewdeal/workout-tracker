@@ -151,3 +151,15 @@ describe('3x Lifting template', () => {
     expect((await getActiveProgram(d))!.days[1].slots.find((s) => s.id === hlr.slotId)!.introSets).toBeUndefined();
   });
 });
+
+describe('order labels', () => {
+  it('number exercises by position and letter the members of a superset', async () => {
+    const { orderLabels } = await import('../state/plan');
+    const p = await loadTemplate(THREE_DAY, d);
+    expect(orderLabels(p.days[0].slots)).toEqual(['1', '2', '3', '4', '5A', '5B', '6']);
+    expect(orderLabels(p.days[1].slots)).toEqual(['1', '2', '3', '4A', '4B', '5A', '5B', '6']);
+    expect(orderLabels(p.days[2].slots)).toEqual(['1', '2', '3', '4A', '4B', '5A', '5B', '6A', '6B']);
+    expect(orderLabels([{ supersetWithPrev: true }, {}, { supersetWithPrev: true }, { supersetWithPrev: true }])).toEqual(['1', '2A', '2B', '2C']);
+    expect(orderLabels([])).toEqual([]);
+  });
+});

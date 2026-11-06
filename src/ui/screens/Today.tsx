@@ -3,7 +3,7 @@ import { reasonText } from '../../engine';
 import { getActiveProgram, getInProgressSession } from '../../db/queries';
 import { abandonSession, startSession } from '../../db/ops';
 import { useLiveQuery } from '../../db/useLiveQuery';
-import { buildPlan, supersetGroups } from '../../state/plan';
+import { buildPlan, orderLabels, supersetGroups } from '../../state/plan';
 import type { PlannedSlot } from '../../model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { fmtAgo, fmtDate, fmtLoadBw, fmtRepTarget, fmtRpe, fmtSuggestion } from '../format';
@@ -87,20 +87,22 @@ export function Today() {
             </div>
           ) : (
             <ul class="list">
-              {supersetGroups(slots).map((group) =>
-                group.length === 1 ? (
-                  <li key={group[0].slotId} class="card"><SlotBody slot={group[0]} /></li>
+              {supersetGroups(slots).map((group) => {
+                const labels = orderLabels(slots);
+                const labelOf = (s: PlannedSlot) => labels[slots.indexOf(s)];
+                return group.length === 1 ? (
+                  <li key={group[0].slotId} class="card"><SlotBody slot={group[0]} tag={labelOf(group[0])} /></li>
                 ) : (
                   <li key={group[0].slotId} class="card">
                     <div class="muted small" style="margin-bottom:6px">Superset · alternate sets</div>
                     {group.map((s, i) => (
                       <div key={s.slotId} class={i > 0 ? 'ss-divider' : ''}>
-                        <SlotBody slot={s} tag={`A${i + 1}`} />
+                        <SlotBody slot={s} tag={labelOf(s)} />
                       </div>
                     ))}
                   </li>
-                ),
-              )}
+                );
+              })}
             </ul>
           )}
           {error && <p class="error">{error}</p>}
@@ -135,7 +137,7 @@ function SlotBody({ slot, tag }: { slot: PlannedSlot; tag?: string }) {
   return (
     <>
       <div class="row between">
-        <strong>{tag && <span class="ss-tag">{tag}</span>}{slot.exerciseName}</strong>
+        <strong>{tag && <span class="order-tag">{tag}</span>}{slot.exerciseName}</strong>
         <span class="muted">{slot.sets} sets{slot.fullSets != null ? ` · intro (usually ${slot.fullSets})` : ''}</span>
       </div>
       <div class="big-number">

@@ -4,7 +4,7 @@ import { classifySet, reasonText } from '../../engine';
 import { abandonSession, checkFinish, findOrCreateExercise, finishSession, slotProblem, type SetLogPatch } from '../../db/ops';
 import type { ChangeScope, PlannedSlot, SetLog, SlotChange, SlotSpec, WarmupLog } from '../../model/types';
 import { copyDownTargets } from '../../state/copyDown';
-import { supersetGroups } from '../../state/plan';
+import { orderLabels, supersetGroups } from '../../state/plan';
 import { useActiveSession } from '../../state/useActiveSession';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { NumberField } from '../components/NumberField';
@@ -94,6 +94,8 @@ export function LogSession({ sessionId }: { sessionId: string }) {
       <ul class="list">
         {session.warmups && session.warmups.length > 0 && <WarmupCard warmups={session.warmups} toggle={toggleWarmup} />}
         {supersetGroups(session.plan).map((group) => {
+          const labels = orderLabels(session.plan);
+          const labelOf = (slot: PlannedSlot) => labels[session.plan.indexOf(slot)];
           const rowsOf = (slot: PlannedSlot) => logs.filter((l) => l.slotId === slot.slotId);
           // Keyed on set 1's row ids, not the slot ids: a swap keeps the slot id but issues new rows, and the card must start fresh.
           const key = group.map((slot) => rowsOf(slot)[0]?.id ?? slot.slotId).join('+');
@@ -103,8 +105,8 @@ export function LogSession({ sessionId }: { sessionId: string }) {
             toggleWarmupSet: (slot: PlannedSlot, i: number, done: boolean) => toggleWarmupSet(slot.slotId, i, done),
           };
           return group.length === 1
-            ? <ExerciseCard key={key} slot={group[0]} logs={rowsOf(group[0])} {...props} />
-            : <SupersetCard key={key} slots={group} logsOf={rowsOf} {...props} />;
+            ? <ExerciseCard key={key} slot={group[0]} label={labelOf(group[0])} logs={rowsOf(group[0])} {...props} />
+            : <SupersetCard key={key} slots={group} labels={group.map(labelOf)} logsOf={rowsOf} {...props} />;
         })}
       </ul>
       <button type="button" class="btn btn-block" onClick={() => setDialog({ kind: 'add' })}>Add exercise</button>
@@ -146,7 +148,7 @@ export function LogSession({ sessionId }: { sessionId: string }) {
   );
 }
 
-function CardHead({ title, pill, pillClass, expanded, onToggle }: { title: string; pill: string; pillClass?: string; expanded: boolean; onToggle: () => void }) {
+function CardHead({ title, tag, pill, pillClass, expanded, onToggle }: { title: string; tag?: string; pill: string; pillClass?: string; expanded: boolean; onToggle: () => void }) {
   return (
     <div
       class="card-head"
@@ -161,7 +163,7 @@ function CardHead({ title, pill, pillClass, expanded, onToggle }: { title: strin
         }
       }}
     >
-      <span class="card-title">{title}</span>
+      <span class="card-title">{tag && <span class="order-tag">{tag}</span>}{title}</span>
       <span class={`pill ${pillClass ?? ''}`}>{pill}</span>
     </div>
   );
@@ -300,7 +302,7 @@ function SetRow({ slot, log, tag, open, onToggleRpe, onLoad, update }: RowProps)
   const name = tag ? `${slot.exerciseName} set ${log.setNumber}` : `Set ${log.setNumber}`;
   return (
     <div class={`set-row ${tag ? 'ss' : ''} ${st}`}>
-      <span class="set-no" aria-label={`${name}${st !== 'pending' ? `, ${st}` : ''}`}>{tag && <span class="ss-tag">{tag}</span>}{log.setNumber}</span>
+      <span class="set-no" aria-label={`${name}${st !== 'pending' ? `, ${st}` : ''}`}>{tag && <span class="order-tag">{tag}</span>}{log.setNumber}</span>
       <NumberField value={log.load} onChange={onLoad} mode="decimal" label={`${name} load`} min={0} placeholder={slot.bodyweight ? 'BW' : 'lb'} />
       <NumberField value={log.reps} onChange={(v) => update(log.id, { reps: v })} mode="numeric" label={`${name} reps`} min={0} placeholder="reps" />
       <button
@@ -334,7 +336,7 @@ function SetHead({ ss, bodyweight }: { ss?: boolean; bodyweight?: boolean }) {
   return <div class={`set-head ${ss ? 'ss' : ''}`}><span>Set</span><span>{bodyweight ? 'Added (lb)' : 'Load (lb)'}</span><span>Reps</span><span>RPE</span></div>;
 }
 
-function ExerciseCard({ slot, logs, update, onSwap, toggleWarmupSet }: CardCallbacks & { slot: PlannedSlot; logs: SetLog[] }) {
+function ExerciseCard({ slot, label, logs, update, onSwap, toggleWarmupSet }: CardCallbacks & { slot: PlannedSlot; label: string; logs: SetLog[] }) {
   const rows = [...logs].sort((a, b) => a.setNumber - b.setNumber);
   const done = rowsDone(rows);
   const [collapsed, setCollapsed] = useState(false);
@@ -343,7 +345,7 @@ function ExerciseCard({ slot, logs, update, onSwap, toggleWarmupSet }: CardCallb
 
   return (
     <li class={`card ${done ? 'is-done' : ''}`}>
-      <CardHead title={slot.exerciseName} pill={pillText(slot, done)} pillClass={done ? 'pill-ok' : ''} expanded={!collapsed} onToggle={() => setCollapsed(!collapsed)} />
+      <CardHead title={slot.exerciseName} tag={label} pill={pillText(slot, done)} pillClass={done ? 'pill-ok' : ''} expanded={!collapsed} onToggle={() => setCollapsed(!collapsed)} />
       {collapsed ? (
         <p class="summary muted"><Summary slot={slot} rows={rows} /></p>
       ) : (
@@ -363,10 +365,10 @@ function ExerciseCard({ slot, logs, update, onSwap, toggleWarmupSet }: CardCallb
   );
 }
 
-/** A1 / A2 (…): one card, sets interleaved by round in the order they are done. */
-function SupersetCard({ slots, logsOf, update, onSwap, toggleWarmupSet }: CardCallbacks & { slots: PlannedSlot[]; logsOf: (slot: PlannedSlot) => SetLog[] }) {
+/** 5A / 5B (…): one card, sets interleaved by round in the order they are done. */
+function SupersetCard({ slots, labels, logsOf, update, onSwap, toggleWarmupSet }: CardCallbacks & { slots: PlannedSlot[]; labels: string[]; logsOf: (slot: PlannedSlot) => SetLog[] }) {
   const rowsOf = (slot: PlannedSlot) => [...logsOf(slot)].sort((a, b) => a.setNumber - b.setNumber);
-  const tag = (i: number) => `A${i + 1}`;
+  const tag = (i: number) => labels[i];
   const allRows = slots.flatMap(rowsOf);
   const doneCount = allRows.filter((l) => l.reps != null).length;
   const done = allRows.length > 0 && doneCount === allRows.length;
@@ -379,7 +381,8 @@ function SupersetCard({ slots, logsOf, update, onSwap, toggleWarmupSet }: CardCa
   return (
     <li class={`card ${done ? 'is-done' : ''}`}>
       <CardHead
-        title={slots.map((s, i) => `${tag(i)} ${s.exerciseName}`).join(' · ')}
+        title={slots.map((s) => s.exerciseName).join(' · ')}
+        tag={labels.join(' / ')}
         pill={done ? `${doneCount}/${allRows.length} ✓` : `${doneCount}/${allRows.length} sets`}
         pillClass={done ? 'pill-ok' : ''}
         expanded={!collapsed}
@@ -387,14 +390,14 @@ function SupersetCard({ slots, logsOf, update, onSwap, toggleWarmupSet }: CardCa
       />
       {collapsed ? (
         slots.map((s, i) => (
-          <p key={s.slotId} class="summary muted"><span class="ss-tag">{tag(i)}</span><Summary slot={s} rows={rowsOf(s)} /></p>
+          <p key={s.slotId} class="summary muted"><span class="order-tag">{tag(i)}</span><Summary slot={s} rows={rowsOf(s)} /></p>
         ))
       ) : (
         <>
           {slots.map((s, i) => (
             <div key={s.slotId} class="ss-block">
               <div class="ss-name">
-                <span><span class="ss-tag">{tag(i)}</span>{s.exerciseName}</span>
+                <span><span class="order-tag">{tag(i)}</span>{s.exerciseName}</span>
                 <span class={`pill ${rowsDone(rowsOf(s)) ? 'pill-ok' : ''}`}>{pillText(s, rowsDone(rowsOf(s)))}</span>
               </div>
               <SlotHints slot={s} />

@@ -77,6 +77,15 @@ export async function buildPlan(program: Program, dayIndex: number, d: WorkoutDB
   return out;
 }
 
+/** Order labels aligned to the slots: "1", "2", … for single exercises and "5A", "5B" for the members of a superset. */
+export function orderLabels<T extends { supersetWithPrev?: boolean }>(slots: T[]): string[] {
+  const out: string[] = [];
+  supersetGroups(slots).forEach((group, g) => {
+    group.forEach((_, i) => out.push(group.length > 1 ? `${g + 1}${String.fromCharCode(65 + i)}` : `${g + 1}`));
+  });
+  return out;
+}
+
 /** Group a plan into supersets: runs of slots where each after the first is marked supersetWithPrev. */
 export function supersetGroups<T extends { supersetWithPrev?: boolean }>(slots: T[]): T[][] {
   const groups: T[][] = [];
