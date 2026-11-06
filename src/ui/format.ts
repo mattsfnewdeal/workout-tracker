@@ -21,9 +21,10 @@ export function fmtRepTarget(t: RepTarget): string {
 }
 
 /** "225 × 5 @ 8" / "185 × 6–8 @ 8", or "5 reps @ 8" / "6–8 reps @ 8" on a first session (no load yet). */
-export function fmtSuggestion(s: Suggestion, bodyweight?: boolean): string {
+export function fmtSuggestion(s: Suggestion, bodyweight?: boolean, showRpe = true): string {
   const reps = fmtRepTarget(s.repTarget);
-  return s.load == null ? `${reps} reps @ ${s.targetRpe}` : `${fmtLoadBw(s.load, bodyweight)} × ${reps} @ ${s.targetRpe}`;
+  const rpe = showRpe ? ` @ ${s.targetRpe}` : '';
+  return s.load == null ? `${reps} reps${rpe}` : `${fmtLoadBw(s.load, bodyweight)} × ${reps}${rpe}`;
 }
 
 export function fmtDate(ts?: number): string {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { MAX_EFFECTIVE_REPS } from '../../engine';
 import { createProgram, emptyProgram, findOrCreateExercise, newDay, newId, newSlot, newWarmup, saveProgram, updateExercise } from '../../db/ops';
-import { PRELOADED, loadTemplate } from '../../db/templates';
+import { TEMPLATES, loadTemplate } from '../../db/templates';
 import { getActiveProgram, getAllExercises, getArchivedPrograms, getInProgressSession } from '../../db/queries';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import type { Day, Exercise, Program, Slot, WarmupItem } from '../../model/types';
@@ -9,12 +9,13 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { NumberField } from '../components/NumberField';
 import { SlotFields } from '../components/SlotFields';
 import { fmtDate, fmtLoad } from '../format';
+import { introEndsAt } from '../../state/plan';
 
-type NewSource = 'empty' | 'copy' | 'template';
+type NewSource = 'empty' | 'copy' | `template:${number}`;
 const SOURCES: [NewSource, string][] = [
+  ...TEMPLATES.map((t, i): [NewSource, string] => [`template:${i}`, `Preloaded: ${t.name} — ${t.blurb}`]),
   ['empty', 'Empty program'],
   ['copy', 'Copy of the current program'],
-  ['template', `Preloaded: ${PRELOADED.name}`],
 ];
 
 function cloneProgram(p: Program): Program {
@@ -26,8 +27,20 @@ function cloneProgram(p: Program): Program {
     status: 'active',
     createdAt: Date.now(),
     archivedAt: undefined,
+    introStartsAt: undefined,
     days: p.days.map((d) => ({ ...d, id: newId(), warmups: (d.warmups ?? []).map((w) => ({ ...w, id: newId() })), slots: d.slots.map((s) => ({ ...s, id: newId() })) })),
   };
+}
+
+/** Local calendar date for a date input, and back to local midnight. */
+function toDateInput(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function fromDateInput(v: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
 }
 
 function move<T>(arr: T[], from: number, to: number): T[] {
@@ -48,7 +61,7 @@ export function ProgramEditor() {
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [confirmNew, setConfirmNew] = useState(false);
-  const [source, setSource] = useState<NewSource>('empty');
+  const [source, setSource] = useState<NewSource>('template:0');
 
   useEffect(() => {
     if (active === undefined) return;
@@ -84,8 +97,8 @@ export function ProgramEditor() {
   async function startNew(src: NewSource) {
     try {
       let p: Program;
-      if (src === 'template') {
-        p = await loadTemplate(PRELOADED);
+      if (src.startsWith('template:')) {
+        p = await loadTemplate(TEMPLATES[Number(src.slice('template:'.length))]);
       } else {
         p = src === 'copy' && active ? cloneProgram(active) : emptyProgram(active ? `Program ${archived.length + 2}` : 'My program');
         await createProgram(p);
@@ -115,8 +128,10 @@ export function ProgramEditor() {
 
       {!draft ? (
         <div class="empty">
-          <p>No program yet. Use the preloaded {PRELOADED.name} program, or build your own: days, then exercises with sets, reps and an RPE goal. You’ll pick each weight in your first session.</p>
-          <button type="button" class="btn btn-primary btn-big" onClick={() => startNew('template')}>Use preloaded program</button>
+          <p>No program yet. Use a preloaded program, or build your own: days, then exercises with sets, reps and a progression rule. You’ll pick each weight in your first session.</p>
+          {TEMPLATES.map((t, i) => (
+            <button type="button" key={t.name} class={`btn ${i === 0 ? 'btn-primary btn-big' : ''}`} onClick={() => startNew(`template:${i}`)}>Use preloaded: {t.name}</button>
+          ))}
           <button type="button" class="btn" onClick={() => startNew('empty')}>Build from scratch</button>
         </div>
       ) : (
@@ -131,6 +146,34 @@ export function ProgramEditor() {
               {draft.days.map((d, i) => <option key={d.id} value={i}>{d.name}</option>)}
             </select>
           </label>
+          <label class="field" style="margin-top:8px">
+            Intro weeks
+            <NumberField
+              value={draft.introWeeks}
+              onChange={(v) => edit((p) => { const next = { ...p }; if (v == null || v === 0) delete next.introWeeks; else next.introWeeks = v; return next; })}
+              mode="numeric"
+              min={0}
+              placeholder="0"
+            />
+          </label>
+          {!!draft.introWeeks && (
+            <label class="field" style="margin-top:8px">
+              Intro starts
+              <input
+                class="text"
+                type="date"
+                value={toDateInput(draft.introStartsAt ?? draft.createdAt)}
+                onChange={(e) => {
+                  const ts = fromDateInput(e.currentTarget.value);
+                  edit((p) => { const next = { ...p }; if (ts == null) delete next.introStartsAt; else next.introStartsAt = ts; return next; });
+                }}
+              />
+            </label>
+          )}
+          <p class="muted small" style="margin:4px 0 0">
+            Exercises with an intro set count run that many sets until the intro weeks end
+            {draft.introWeeks ? ` (${fmtDate(introEndsAt(draft) ?? undefined)}). Sessions before the start date count as week 0 and use the intro counts too.` : '.'}
+          </p>
           {inProgress && <p class="muted small">A session is in progress; edits apply to the next session.</p>}
 
           {draft.days.map((day, di) => (
@@ -140,6 +183,7 @@ export function ProgramEditor() {
               index={di}
               count={draft.days.length}
               exercises={exercises}
+              showIntro={!!draft.introWeeks}
               onChange={(d) => edit((p) => ({ ...p, days: p.days.map((x) => (x.id === d.id ? d : x)) }))}
               onMove={(dir) => edit((p) => ({ ...p, days: move(p.days, di, di + dir) }))}
               onDelete={() => edit((p) => ({ ...p, days: p.days.filter((x) => x.id !== day.id) }))}
@@ -177,7 +221,7 @@ export function ProgramEditor() {
                       <ul style="margin:2px 0 0; padding-left:18px">
                         {d.slots.map((s) => {
                           const ex = exercises.find((e) => e.id === s.exerciseId);
-                          return <li key={s.id}>{ex?.name ?? 'Unknown'} — {s.sets} × {s.progression === 'single' ? s.targetReps : `${s.repMin}–${s.repMax}`} @ {s.targetRpe}</li>;
+                          return <li key={s.id}>{ex?.name ?? 'Unknown'} — {s.sets} × {s.progression === 'single' ? s.targetReps : `${s.repMin}–${s.repMax}`}{s.targetRpe != null ? ` @ ${s.targetRpe}` : ''}{s.rule === 'linear' ? ' · linear' : ''}</li>;
                         })}
                       </ul>
                     </div>
@@ -215,12 +259,13 @@ interface DayProps {
   index: number;
   count: number;
   exercises: Exercise[];
+  showIntro: boolean;
   onChange: (d: Day) => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
 }
 
-function DayEditor({ day, index, count, exercises, onChange, onMove, onDelete }: DayProps) {
+function DayEditor({ day, index, count, exercises, showIntro, onChange, onMove, onDelete }: DayProps) {
   const [newName, setNewName] = useState('');
   const [newWarmupName, setNewWarmupName] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -299,6 +344,7 @@ function DayEditor({ day, index, count, exercises, onChange, onMove, onDelete }:
           exercise={exercises.find((e) => e.id === slot.exerciseId)}
           index={si}
           count={day.slots.length}
+          showIntro={showIntro}
           onChange={(s) => onChange({ ...day, slots: day.slots.map((x) => (x.id === s.id ? s : x)) })}
           onMove={(dir) => onChange({ ...day, slots: move(day.slots, si, si + dir) })}
           onDelete={() => onChange({ ...day, slots: day.slots.filter((x) => x.id !== slot.id) })}
@@ -330,14 +376,15 @@ interface SlotProps {
   exercise: Exercise | undefined;
   index: number;
   count: number;
+  showIntro: boolean;
   onChange: (s: Slot) => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
 }
 
-function SlotEditor({ slot, exercise, index, count, onChange, onMove, onDelete }: SlotProps) {
+function SlotEditor({ slot, exercise, index, count, showIntro, onChange, onMove, onDelete }: SlotProps) {
   const keyReps = slot.progression === 'single' ? slot.targetReps : slot.repMin;
-  const offChart = keyReps != null && keyReps + (10 - slot.targetRpe) > MAX_EFFECTIVE_REPS;
+  const offChart = slot.rule !== 'linear' && keyReps != null && keyReps + (10 - (slot.targetRpe ?? 8)) > MAX_EFFECTIVE_REPS;
 
   return (
     <div class="card" style="margin-top:10px; background: var(--bg)">
@@ -347,7 +394,18 @@ function SlotEditor({ slot, exercise, index, count, onChange, onMove, onDelete }
         <button type="button" class="btn btn-small btn-icon" disabled={index === count - 1} onClick={() => onMove(1)} aria-label="Move down">↓</button>
         <button type="button" class="btn btn-small btn-icon" onClick={onDelete} aria-label="Remove">✕</button>
       </div>
-      <SlotFields slot={slot} onChange={onChange} />
+      {index > 0 && (
+        <label class="check" style="min-height:36px; margin-top:8px">
+          <input
+            type="checkbox"
+            checked={!!slot.supersetWithPrev}
+            aria-label={`${exercise?.name ?? 'Exercise'} superset with the exercise above`}
+            onChange={(e) => { const next = { ...slot }; if (e.currentTarget.checked) next.supersetWithPrev = true; else delete next.supersetWithPrev; onChange(next); }}
+          />
+          <span class="small">Superset with the exercise above (A1 / A2)</span>
+        </label>
+      )}
+      <SlotFields slot={slot} onChange={onChange} showIntro={showIntro} />
       <div class="row gap" style="margin-top:8px">
         <label class="field grow">
           Increment (lb)

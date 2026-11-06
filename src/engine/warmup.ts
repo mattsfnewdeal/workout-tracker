@@ -19,7 +19,8 @@ export interface WarmupPrescription {
 export type LiftClass = 'main' | 'light' | 'isolation';
 
 const ISOLATION = ['curl', 'raise', 'extension', 'ote', 'pushdown', 'pressdown', 'fly', 'flye', 'face pull', 'facepull', 'pull-apart', 'pullapart', 'pull apart', 'kickback', 'shrug', 'calf', 'crunch', 'plank', 'pallof'];
-const LIGHT_PREFIX = ['db ', 'dumbbell', 'cable', 'machine', 'band', 'kb ', 'kettlebell', 'smith'];
+const LIGHT_PREFIX = ['cable', 'machine', 'band ', 'kettlebell', 'smith'];
+const LIGHT_WORD = ['db', 'dumbbell', 'kb'];
 const LIGHT_ANY = ['cable', 'machine', 'pulldown', 'lat pull', 'leg press', 'chest press', 'pec deck', 'hamstring curl', 'leg curl'];
 
 /**
@@ -31,7 +32,7 @@ export function liftClass(name: string): LiftClass {
   const n = name.trim().toLowerCase();
   const word = (w: string) => n === w || n.startsWith(`${w} `) || n.endsWith(` ${w}`) || n.includes(` ${w} `);
   if (ISOLATION.some((w) => (w.length <= 3 ? word(w) : n.includes(w)))) return 'isolation';
-  if (LIGHT_PREFIX.some((w) => n.startsWith(w)) || LIGHT_ANY.some((w) => n.includes(w))) return 'light';
+  if (LIGHT_PREFIX.some((w) => n.startsWith(w)) || LIGHT_WORD.some(word) || LIGHT_ANY.some((w) => n.includes(w))) return 'light';
   return 'main';
 }
 

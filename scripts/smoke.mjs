@@ -224,7 +224,7 @@ const importFile = async (path) => {
 
 await step('preloaded program: Tuesday/Thursday with checkbox warm-ups that persist', async () => {
   await page.getByRole('button', { name: 'Build a program' }).click();
-  await page.getByRole('button', { name: 'Use preloaded program' }).click();
+  await page.getByRole('button', { name: 'Use preloaded: Tuesday / Thursday' }).click();
   await page.getByLabel('Day name').first().waitFor();
   assert((await page.getByLabel('Day name').first().inputValue()) === 'Tuesday', 'first day should be Tuesday');
   assert((await page.getByLabel('Warm-up name').count()) === 8, 'expected 4 warm-ups per day');
@@ -253,7 +253,7 @@ await step('swap Squat → Leg Press for future Tuesdays; add Face Pull just for
   const dlg = page.getByRole('dialog');
   await dlg.getByText('Swap Squat').waitFor();
   assert((await dlg.getByRole('radio', { name: 'Rep range' }).getAttribute('aria-checked')) === 'true', 'swap should inherit the rep range');
-  assert((await dlg.getByLabel('Sets').inputValue()) === '3' && (await dlg.getByLabel('Min reps').inputValue()) === '4' && (await dlg.getByLabel('Max reps').inputValue()) === '6', 'swap should inherit 3 × 4–6');
+  assert((await dlg.getByLabel('Sets', { exact: true }).inputValue()) === '3' && (await dlg.getByLabel('Min reps').inputValue()) === '4' && (await dlg.getByLabel('Max reps').inputValue()) === '6', 'swap should inherit 3 × 4–6');
   await dlg.getByLabel('Exercise name').fill('Leg Press');
   await dlg.getByLabel(/This and future sessions/).check();
   await shot('14-swap-dialog');
@@ -336,6 +336,88 @@ await step('Chin is bodyweight: logs with no load, shows BW in History, holds at
   for (const s of ['BW × 6–10 @ 8', 'beat 8', 'Warm-up sets: BW × 5', 'Last set 1: BW × 8 @ 8']) assert(ct.includes(s), `missing "${s}" in: ${ct}`);
   assert(!ct.includes('low confidence'), 'bodyweight must not be low confidence');
   await shot('19-today-chin-hold');
+});
+
+await step('3x Lifting: supersets, linear main lifts, intro set counts', async () => {
+  await page.getByRole('link', { name: 'Program' }).click();
+  await page.getByRole('button', { name: 'New program' }).click();
+  await page.getByLabel(/Preloaded: 3x Lifting/).check();
+  await page.getByRole('button', { name: 'New program', exact: true }).last().click();
+  await page.getByText('Archived “Tuesday / Thursday”').waitFor();
+  assert((await page.getByLabel('Day name').first().inputValue()) === 'Day 1', 'first day should be Day 1');
+  assert((await page.getByLabel('Intro weeks').inputValue()) === '2', 'intro weeks should be 2');
+  // week 0: push the intro start three days out and check the end date moves with it
+  const startsAt = new Date(Date.now() + 3 * 86400000);
+  const iso = `${startsAt.getFullYear()}-${String(startsAt.getMonth() + 1).padStart(2, '0')}-${String(startsAt.getDate()).padStart(2, '0')}`;
+  await page.getByLabel('Intro starts').fill(iso);
+  const endsAt = new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate() + 14);
+  const endText = endsAt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(endsAt.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }) });
+  assert((await page.locator('main').innerText()).includes(`(${endText})`), `intro end date should read ${endText}`);
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByText('Saved', { exact: true }).first().waitFor();
+  const day1 = page.locator('section.card').nth(0);
+  assert(await day1.getByLabel('Face Pull superset with the exercise above').isChecked(), 'Face Pull should be A2');
+  assert(!(await day1.getByLabel('Lateral Raise superset with the exercise above').isChecked()), 'Lateral Raise should be A1');
+  const squatEditor = day1.locator('.card', { hasText: 'Back Squat' }).first();
+  assert((await squatEditor.getByRole('radio', { name: 'Linear' }).getAttribute('aria-checked')) === 'true', 'Back Squat should be linear');
+  assert((await squatEditor.getByRole('radiogroup', { name: 'RPE goal' }).getByRole('radio', { checked: true }).count()) === 0, 'main lifts should have no RPE goal selected');
+  assert((await day1.locator('.card', { hasText: 'Chest-Supported Row' }).first().getByRole('radio', { name: '8', exact: true }).getAttribute('aria-checked')) === 'true', 'accessories keep an RPE goal of 8');
+  const rowEditor = day1.locator('.card', { hasText: 'Chest-Supported Row' }).first();
+  assert((await rowEditor.getByLabel('Intro sets').inputValue()) === '2' && (await rowEditor.getByLabel('Sets', { exact: true }).inputValue()) === '4', 'intro sets should be 2 of 4');
+  await shot('20-program-3x');
+
+  await page.getByRole('link', { name: 'Today' }).click();
+  await page.getByText('Next: Day 1').waitFor();
+  const today = await page.locator('main').innerText();
+  for (const t of ['Back Squat', '5 reps\n', 'Superset · alternate sets', 'A1', 'Lateral Raise', 'A2', 'Face Pull', '2 sets · intro (usually 4)', '2 sets · intro (usually 3)']) assert(today.includes(t), `missing "${t}" in Today: ${today}`);
+  const bs = await page.locator('li.card', { hasText: 'Back Squat' }).first().innerText();
+  assert(bs.includes('5 reps') && !bs.includes('@'), `linear main lift must not show an RPE goal: ${bs}`);
+  await shot('21-today-3x');
+
+  await page.getByRole('button', { name: 'Start Day 1' }).click();
+  await page.waitForURL(/#\/log\//);
+  const ss = page.locator('li.card', { hasText: 'A1 Lateral Raise · A2 Face Pull' });
+  await ss.waitFor();
+  const setNos = await ss.locator('.set-no').allInnerTexts();
+  assert(setNos.join('|') === 'A11|A21|A12|A22', `rounds should interleave A1/A2: ${setNos.join('|')}`);
+  await ss.getByLabel('Lateral Raise set 1 load').fill('15');
+  await waitValue(ss.getByLabel('Lateral Raise set 2 load'), '15');
+  assert((await ss.getByLabel('Face Pull set 1 load').inputValue()) === '', 'copy-down must stay inside its own exercise');
+  await ss.getByLabel('Face Pull set 1 load').fill('20');
+  await waitValue(ss.getByLabel('Face Pull set 2 load'), '20');
+  for (const n of [1, 2]) { await ss.getByLabel(`Lateral Raise set ${n} reps`).fill('15'); await ss.getByLabel(`Face Pull set ${n} reps`).fill('15'); }
+  await ss.getByRole('button', { name: /^Lateral Raise set 1 RPE/ }).click();
+  await ss.getByRole('radio', { name: '8', exact: true }).click();
+  await ss.getByRole('button', { name: /^Face Pull set 1 RPE/ }).click();
+  await ss.getByRole('radio', { name: '8', exact: true }).click();
+  assert((await ss.locator('.set-row.good').count()) === 4, 'all four superset rows should be green');
+  assert((await ss.locator('.pill').first().innerText()).includes('4/4'), 'superset pill should count all sets');
+
+  const squat = page.locator('li.card', { hasText: 'Back Squat' }).first();
+  assert((await squat.innerText()).includes('3 × 5') && !(await squat.innerText()).includes('@ 8'), 'linear pill should have no RPE goal');
+  await squat.getByLabel('Set 1 load').fill('135');
+  await waitValue(squat.getByLabel('Set 3 load'), '135');
+  for (const n of [1, 2, 3]) await squat.getByLabel(`Set ${n} reps`).fill('5');
+  await squat.getByRole('button', { name: /^Set 1 RPE/ }).click();
+  await squat.getByRole('radio', { name: '9.5', exact: true }).click();
+  assert((await squat.locator('.set-row.good').count()) === 3, 'linear sets colour on reps alone, so RPE 9.5 is still green');
+  await shot('22-log-3x');
+  await page.getByRole('button', { name: 'Finish' }).click();
+  await page.getByText('Finish without these?').waitFor();
+  await page.getByRole('button', { name: 'Finish anyway' }).click();
+  await page.getByText('Next: Day 2').waitFor();
+
+  await page.getByRole('link', { name: 'Program' }).click();
+  await page.getByLabel('Next session').selectOption('0');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByText('Saved', { exact: true }).first().waitFor();
+  await page.getByRole('link', { name: 'Today' }).click();
+  await page.getByText('Next: Day 1').waitFor();
+  const sq = await page.locator('li.card', { hasText: 'Back Squat' }).first().innerText();
+  for (const t of ['140 × 5', 'Every set hit the target — add one increment', 'Warm-up sets: 85 × 5', 'Last set 1: 135 × 5 @ 9.5']) assert(sq.includes(t), `missing "${t}" in: ${sq}`);
+  const lr = await page.locator('li.card', { hasText: 'Lateral Raise' }).first().innerText();
+  for (const t of ['15 × 12–20 @ 8', '20 × 12–20 @ 8', 'get every set to the top of the range']) assert(lr.includes(t), `missing "${t}" in: ${lr}`);
+  await shot('23-today-3x-progressed');
 });
 
 await step('import restores the backup and the 215 suggestion', async () => {

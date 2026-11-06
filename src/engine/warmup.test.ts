@@ -9,8 +9,8 @@ const w = (workingLoad: number, exerciseName: string, repTarget: RepTarget, incr
 
 describe('liftClass', () => {
   it('classifies by name; unknown names are main lifts', () => {
-    for (const n of ['Squat', 'Trap', 'Trap Bar Deadlift', 'Bench Press', 'Press', 'BSS', 'Chin', 'Front Squat', 'Row']) expect(liftClass(n), n).toBe('main');
-    for (const n of ['DB Bench', 'DB SLDL', 'DB Press', 'DB Row', 'Cable chop', 'Dumbbell Row', 'Lat Pulldown', 'Leg Press', 'Machine Chest Press', 'KB Swing']) expect(liftClass(n), n).toBe('light');
+    for (const n of ['Squat', 'Trap', 'Trap Bar Deadlift', 'Bench Press', 'Press', 'BSS', 'Chin', 'Front Squat', 'Row', 'Banded Squat', 'Chest-Supported Row', 'Romanian Deadlift']) expect(liftClass(n), n).toBe('main');
+    for (const n of ['DB Bench', 'DB SLDL', 'DB Press', 'DB Row', 'Cable chop', 'Dumbbell Row', 'Lat Pulldown', 'Leg Press', 'Machine Chest Press', 'KB Swing', 'Incline DB Press', 'Band Pull-Down', 'Cable Row']) expect(liftClass(n), n).toBe('light');
     for (const n of ['DB Incline Curl', 'DB OTE', 'Pallof Press', 'Face Pull', 'Lateral Raise', 'Tricep Pushdown', 'Leg Extension', 'Calf Raise', 'Plank', 'Shrug', 'Band Pull-Apart']) expect(liftClass(n), n).toBe('isolation');
   });
 });

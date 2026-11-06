@@ -13,10 +13,11 @@ export function repsHitTarget(target: RepTarget, reps: number): boolean {
   return target.kind === 'fixed' ? reps >= target.reps : reps >= target.min;
 }
 
-export function classifySet(target: RepTarget, targetRpe: number, reps: number | undefined, rpe: number | undefined): SetStatus {
+/** `targetRpe` null (linear rule): reps alone decide; a logged RPE is just a note. */
+export function classifySet(target: RepTarget, targetRpe: number | null, reps: number | undefined, rpe: number | undefined): SetStatus {
   if (reps == null) return 'pending';
   if (!repsHitTarget(target, reps)) return 'hard';
-  if (rpe == null) return 'good';
+  if (rpe == null || targetRpe == null) return 'good';
   if (rpe > targetRpe + 1) return 'hard';
   if (rpe < targetRpe - 1) return 'easy';
   return 'good';

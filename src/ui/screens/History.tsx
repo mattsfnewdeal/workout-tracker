@@ -41,7 +41,7 @@ export function History({ exerciseId }: { exerciseId?: string }) {
                       ))}
                     </tbody>
                   </table>
-                  <div class="small muted">e1RM from set 1: {e1rm == null ? '—' : Math.round(e1rm)}</div>
+                  <div class="small muted">e1RM from set 1: {e1rm == null || selected.bodyweight ? '—' : Math.round(e1rm)}</div>
                 </li>
               ))}
             </ul>

@@ -1,6 +1,6 @@
 import { DEFAULT_TARGET_RPE } from '../../engine';
 import { switchProgression } from '../../db/ops';
-import type { Slot, SlotSpec } from '../../model/types';
+import type { ProgressionRule, Slot, SlotSpec } from '../../model/types';
 import { NumberField } from './NumberField';
 import { RpePicker } from './RpePicker';
 
@@ -8,57 +8,96 @@ const MODES: { value: Slot['progression']; label: string; hint: string }[] = [
   { value: 'single', label: 'Fixed reps', hint: 'Load goes up once every set hits the target.' },
   { value: 'double', label: 'Rep range', hint: 'Same load until set 1 beats the top of the range, then load goes up.' },
 ];
+const RULES: { value: ProgressionRule; label: string; hint: string }[] = [
+  { value: 'rpe', label: 'By RPE', hint: 'Next load comes from set 1’s e1RM at the RPE goal.' },
+  { value: 'linear', label: 'Linear', hint: 'Add one increment when every set hits the target (the top of a range). Hold on a miss; drop 10% after two misses in a row. RPE is noted, not used.' },
+];
 
 interface Props<T extends SlotSpec> {
   slot: T;
   onChange: (s: T) => void;
+  /** Show the intro-weeks set count (the program has intro weeks). */
+  showIntro?: boolean;
 }
 
-/** Sets, fixed reps or a rep range, and the RPE goal. Used by the program builder and the swap / add dialog. */
-export function SlotFields<T extends SlotSpec>({ slot, onChange }: Props<T>) {
+function Segmented<V extends string>({ label, value, options, onChange }: { label: string; value: V; options: { value: V; label: string }[]; onChange: (v: V) => void }) {
+  return (
+    <div
+      class="row gap"
+      role="radiogroup"
+      aria-label={label}
+      style="margin-top:8px"
+      onKeyDown={(e) => {
+        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+        e.preventDefault();
+        const i = options.findIndex((o) => o.value === value);
+        const next = options[(i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? options.length - 1 : 1)) % options.length].value;
+        onChange(next);
+        (e.currentTarget.querySelector(`[data-value="${next}"]`) as HTMLElement | null)?.focus();
+      }}
+    >
+      {options.map((o) => (
+        <button
+          type="button"
+          key={o.value}
+          role="radio"
+          aria-checked={value === o.value}
+          tabIndex={value === o.value ? 0 : -1}
+          data-value={o.value}
+          class={`btn grow ${value === o.value ? 'btn-primary' : ''}`}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Sets, fixed reps or a rep range, the progression rule and the RPE goal. Used by the program builder and the swap / add dialog. */
+export function SlotFields<T extends SlotSpec>({ slot, onChange, showIntro }: Props<T>) {
   const mode = MODES.find((m) => m.value === slot.progression) ?? MODES[0];
+  const rule = slot.rule === 'linear' ? 'linear' : 'rpe';
+  const ruleInfo = RULES.find((r) => r.value === rule) ?? RULES[0];
+  const intro = (slot as { introSets?: number }).introSets;
 
   /** Switching keeps the numbers already typed: Fixed 5 → Range 5–7, Range 6–8 → Fixed 6. */
   const setMode = (progression: Slot['progression']) => {
     if (progression !== slot.progression) onChange(switchProgression(slot, progression));
   };
+  const setRule = (r: ProgressionRule) => {
+    const next = { ...slot } as T & { rule?: ProgressionRule };
+    if (r === 'linear') next.rule = 'linear';
+    else {
+      delete next.rule;
+      next.targetRpe ??= DEFAULT_TARGET_RPE; // by-RPE needs a goal: it sets the load
+    }
+    onChange(next);
+  };
+  const setIntro = (v: number | undefined) => {
+    const next = { ...slot } as T & { introSets?: number };
+    if (v == null) delete next.introSets;
+    else next.introSets = v;
+    onChange(next);
+  };
 
   return (
     <>
-      <div
-        class="row gap"
-        role="radiogroup"
-        aria-label="Reps"
-        style="margin-top:8px"
-        onKeyDown={(e) => {
-          if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
-          e.preventDefault();
-          const next: Slot['progression'] = slot.progression === 'single' ? 'double' : 'single';
-          setMode(next);
-          (e.currentTarget.querySelector(`[data-mode="${next}"]`) as HTMLElement | null)?.focus();
-        }}
-      >
-        {MODES.map((m) => (
-          <button
-            type="button"
-            key={m.value}
-            role="radio"
-            aria-checked={slot.progression === m.value}
-            tabIndex={slot.progression === m.value ? 0 : -1}
-            data-mode={m.value}
-            class={`btn grow ${slot.progression === m.value ? 'btn-primary' : ''}`}
-            onClick={() => setMode(m.value)}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+      <Segmented label="Reps" value={slot.progression} options={MODES} onChange={setMode} />
       <p class="muted small" style="margin:6px 0 0">{mode.hint}</p>
+      <Segmented label="Progression" value={rule} options={RULES} onChange={setRule} />
+      <p class="muted small" style="margin:6px 0 0">{ruleInfo.hint}</p>
       <div class="row gap" style="margin-top:8px">
         <label class="field grow">
           Sets
           <NumberField value={slot.sets} onChange={(v) => onChange({ ...slot, sets: v ?? 1 })} mode="numeric" min={1} />
         </label>
+        {showIntro && (
+          <label class="field grow">
+            Intro sets
+            <NumberField value={intro} onChange={setIntro} mode="numeric" min={1} placeholder="same" />
+          </label>
+        )}
         {slot.progression === 'single' ? (
           <label class="field grow">
             Target reps
@@ -78,8 +117,18 @@ export function SlotFields<T extends SlotSpec>({ slot, onChange }: Props<T>) {
         )}
       </div>
       <label class="field" style="margin-top:8px">
-        RPE goal
-        <RpePicker compact value={slot.targetRpe} onChange={(v) => onChange({ ...slot, targetRpe: v ?? DEFAULT_TARGET_RPE })} label="RPE goal" />
+        {rule === 'rpe' ? 'RPE goal' : 'RPE goal (optional — colours sets, doesn’t set the load; tap again to clear)'}
+        <RpePicker
+          compact
+          value={slot.targetRpe}
+          onChange={(v) => {
+            const next = { ...slot };
+            if (v == null && rule === 'linear') delete next.targetRpe;
+            else next.targetRpe = v ?? DEFAULT_TARGET_RPE;
+            onChange(next);
+          }}
+          label="RPE goal"
+        />
       </label>
     </>
   );

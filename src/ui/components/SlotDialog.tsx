@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import { DEFAULT_TARGET_RPE } from '../../engine';
+import { normalizeName } from '../../db/ops';
 import { getAllExercises } from '../../db/queries';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import type { ChangeScope, PlannedSlot, SlotSpec } from '../../model/types';
@@ -14,7 +15,8 @@ interface Props {
   dayName: string;
   onCancel: () => void;
   /** Resolves when the change is saved; rejects with a message to show. */
-  onSubmit: (exerciseName: string, spec: SlotSpec, scope: ChangeScope, bodyweight: boolean) => Promise<void>;
+  /** `bodyweight` is undefined when the lifter never touched the box: the exercise keeps its flag. */
+  onSubmit: (exerciseName: string, spec: SlotSpec, scope: ChangeScope, bodyweight: boolean | undefined) => Promise<void>;
 }
 
 const DEFAULT_SPEC: SlotSpec = { sets: 3, progression: 'single', targetReps: 5, targetRpe: DEFAULT_TARGET_RPE };
@@ -33,7 +35,7 @@ function SlotForm({ mode, dayName, onCancel, onSubmit }: Props & { mode: SlotDia
   const [scope, setScope] = useState<ChangeScope>('session');
   const [bodyweight, setBodyweight] = useState(false);
   const [bwTouched, setBwTouched] = useState(false);
-  const lower = name.trim().toLowerCase();
+  const lower = normalizeName(name).toLowerCase(); // the same match findOrCreateExercise makes
   const existing = exercises.find((e) => e.name.toLowerCase() === lower);
   // An existing exercise's flag shows as soon as its name is typed, unless the box was set by hand.
   const bwShown = bwTouched ? bodyweight : !!existing?.bodyweight;
@@ -48,7 +50,7 @@ function SlotForm({ mode, dayName, onCancel, onSubmit }: Props & { mode: SlotDia
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(name, spec, scope, bwShown);
+      await onSubmit(name, spec, scope, bwTouched ? bodyweight : undefined);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);

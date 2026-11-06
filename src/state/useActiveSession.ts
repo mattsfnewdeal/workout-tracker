@@ -67,8 +67,8 @@ export function useActiveSession(sessionId: string) {
   }, [sessionId]);
 
   /** Swap one slot's exercise or add a slot; the session and its rows are re-read from Dexie afterwards. Errors propagate to the caller. */
-  const changeSlot = useCallback(async (change: { slotId?: string; exerciseId: string; spec: SlotSpec; scope: ChangeScope }) => {
-    const req = { sessionId, exerciseId: change.exerciseId, spec: change.spec, scope: change.scope };
+  const changeSlot = useCallback(async (change: { slotId?: string; exerciseId: string; spec: SlotSpec; scope: ChangeScope; bodyweight?: boolean }) => {
+    const req = { sessionId, exerciseId: change.exerciseId, spec: change.spec, scope: change.scope, ...(change.bodyweight != null ? { bodyweight: change.bodyweight } : {}) };
     const session = change.slotId ? await swapExercise({ ...req, slotId: change.slotId }) : await addExercise(req);
     const logs = await getSessionLogs(sessionId);
     setState({ session, logs });

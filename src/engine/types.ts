@@ -3,6 +3,8 @@ interface BaseParams {
   increment: number;
   /** Load is added weight (0 = bodyweight). Progression steps by increments instead of e1RM. */
   bodyweight?: boolean;
+  /** 'linear': increments on reps alone, ignoring e1RM and RPE. Absent = 'rpe'. */
+  rule?: 'rpe' | 'linear';
 }
 
 export type SlotParams =
@@ -33,7 +35,11 @@ export type SuggestionReason =
   | 'single-hold-rpe-high'
   | 'single-hold-missed-reps'
   | 'fallback-add-increment'
-  | 'fallback-hold';
+  | 'fallback-hold'
+  | 'linear-progress'
+  | 'linear-hold-missed'
+  | 'linear-hold-range'
+  | 'linear-deload';
 
 export interface Suggestion {
   /** null on the first session: there is no history, the lifter picks the load. */

@@ -3,7 +3,7 @@ import { reasonText } from '../../engine';
 import { getActiveProgram, getInProgressSession } from '../../db/queries';
 import { abandonSession, startSession } from '../../db/ops';
 import { useLiveQuery } from '../../db/useLiveQuery';
-import { buildPlan } from '../../state/plan';
+import { buildPlan, supersetGroups } from '../../state/plan';
 import type { PlannedSlot } from '../../model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { fmtAgo, fmtDate, fmtLoadBw, fmtRepTarget, fmtRpe, fmtSuggestion } from '../format';
@@ -87,7 +87,20 @@ export function Today() {
             </div>
           ) : (
             <ul class="list">
-              {slots.map((s) => <SlotCard key={s.slotId} slot={s} />)}
+              {supersetGroups(slots).map((group) =>
+                group.length === 1 ? (
+                  <li key={group[0].slotId} class="card"><SlotBody slot={group[0]} /></li>
+                ) : (
+                  <li key={group[0].slotId} class="card">
+                    <div class="muted small" style="margin-bottom:6px">Superset · alternate sets</div>
+                    {group.map((s, i) => (
+                      <div key={s.slotId} class={i > 0 ? 'ss-divider' : ''}>
+                        <SlotBody slot={s} tag={`A${i + 1}`} />
+                      </div>
+                    ))}
+                  </li>
+                ),
+              )}
             </ul>
           )}
           {error && <p class="error">{error}</p>}
@@ -116,17 +129,17 @@ export function Today() {
   );
 }
 
-function SlotCard({ slot }: { slot: PlannedSlot }) {
+function SlotBody({ slot, tag }: { slot: PlannedSlot; tag?: string }) {
   const s = slot.suggestion;
   const beat = s.repTarget.kind === 'range' ? s.repTarget.beat : null;
   return (
-    <li class="card">
+    <>
       <div class="row between">
-        <strong>{slot.exerciseName}</strong>
-        <span class="muted">{slot.sets} sets</span>
+        <strong>{tag && <span class="ss-tag">{tag}</span>}{slot.exerciseName}</strong>
+        <span class="muted">{slot.sets} sets{slot.fullSets != null ? ` · intro (usually ${slot.fullSets})` : ''}</span>
       </div>
       <div class="big-number">
-        {fmtSuggestion(s, slot.bodyweight)}
+        {fmtSuggestion(s, slot.bodyweight, slot.rule !== 'linear' || slot.targetRpe != null)}
         {beat != null && <span class="muted"> · beat {beat}</span>}
       </div>
       <div class="row gap wrap">
@@ -144,6 +157,6 @@ function SlotCard({ slot }: { slot: PlannedSlot }) {
           {s.repTarget.kind === 'fixed' ? '' : ` (range ${fmtRepTarget(s.repTarget)})`}
         </div>
       )}
-    </li>
+    </>
   );
 }

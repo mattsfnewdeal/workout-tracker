@@ -113,3 +113,24 @@ describe('suggested warm-up sets', () => {
     expect(after.plan[2].warmupSets).toBeUndefined(); // first session for Press
   });
 });
+
+describe('bodyweight flag through the swap / add dialog path', () => {
+  it('is written in the same transaction as the change, so a refused change leaves it alone', async () => {
+    const chin = await findOrCreateExercise('Chin', 5, d);
+    const squat = await findOrCreateExercise('Squat', 5, d);
+    const p = emptyProgram('BW');
+    p.days[0].slots.push(newSlot(squat.id, { sets: 1 }));
+    await createProgram(p, d);
+    const session = await startTuesday();
+    // refused: Squat is already in the session → Chin's flag must not change
+    await expect(swapExercise({ sessionId: session.id, slotId: session.plan[0].slotId, exerciseId: squat.id, spec: { sets: 1, progression: 'single', targetReps: 5, targetRpe: 8 }, scope: 'session', bodyweight: true }, d).then(() => swapExercise({ sessionId: session.id, slotId: 'nope', exerciseId: chin.id, spec: { sets: 1, progression: 'single', targetReps: 5, targetRpe: 8 }, scope: 'session', bodyweight: true }, d))).rejects.toThrow();
+    expect((await d.exercises.get(chin.id))!.bodyweight).toBeUndefined();
+    // accepted: the flag lands and the planned slot is bodyweight
+    const after = await swapExercise({ sessionId: session.id, slotId: session.plan[0].slotId, exerciseId: chin.id, spec: { sets: 2, progression: 'double', repMin: 6, repMax: 10, targetRpe: 8 }, scope: 'session', bodyweight: true }, d);
+    expect((await d.exercises.get(chin.id))!.bodyweight).toBe(true);
+    expect(after.plan[0].bodyweight).toBe(true);
+    // undefined leaves the flag as it is
+    await swapExercise({ sessionId: session.id, slotId: session.plan[0].slotId, exerciseId: chin.id, spec: { sets: 3, progression: 'double', repMin: 6, repMax: 10, targetRpe: 8 }, scope: 'session' }, d);
+    expect((await d.exercises.get(chin.id))!.bodyweight).toBe(true);
+  });
+});

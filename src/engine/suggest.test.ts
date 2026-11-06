@@ -9,6 +9,7 @@ const set = (load: number, reps: number, rpe: number | null, setNumber = 1): Log
 const ALL_REASONS: SuggestionReason[] = [
   'first-session', 'double-progress', 'double-hold-add-reps', 'double-rpe-high', 'double-below-min',
   'single-progress', 'single-hold-rpe-high', 'single-hold-missed-reps', 'fallback-add-increment', 'fallback-hold',
+  'linear-progress', 'linear-hold-missed', 'linear-hold-range', 'linear-deload',
 ];
 
 describe('suggest', () => {
@@ -32,7 +33,7 @@ describe('suggest', () => {
   });
 
   it('load is null for the first session and only then', () => {
-    const cases: [SlotParams, LoggedSet[] | null][] = [
+    const cases: [SlotParams, LoggedSet[] | null, LoggedSet[]?][] = [
       [single, null],
       [single, [set(225, 5, 7), set(225, 5, null, 2), set(225, 5, null, 3)]],
       [single, [set(225, 5, 9.5), set(225, 5, null, 2), set(225, 5, null, 3)]],
@@ -43,10 +44,15 @@ describe('suggest', () => {
       [double, [set(185, 5, 8)]],
       [single, [set(100, 13, 8), set(100, 13, 8, 2), set(100, 13, 8, 3)]],
       [double, [set(100, 7, null)]],
+      [{ ...single, rule: 'linear' }, [set(225, 5, 7), set(225, 5, null, 2), set(225, 5, null, 3)]],
+      [{ ...single, rule: 'linear' }, [set(225, 5, 7), set(225, 4, null, 2)]],
+      [{ ...single, rule: 'linear' }, [set(225, 5, 7), set(225, 4, null, 2)], [set(225, 4, 7)]],
+      [{ ...double, rule: 'linear' }, [set(100, 7, 8)]],
+      [{ ...single, rule: 'linear' }, [set(225, 5, 7), set(225, 4, null, 2)], [set(225, 4, 7)]],
     ];
     const seen = new Set<SuggestionReason>();
-    for (const [p, last] of cases) {
-      const s = suggest(p, last);
+    for (const [p, last, previous] of cases) {
+      const s = suggest(p, last, previous);
       seen.add(s.reason);
       expect(s.load == null, s.reason).toBe(s.reason === 'first-session');
     }

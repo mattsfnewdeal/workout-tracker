@@ -37,23 +37,33 @@ export interface LastSets {
 }
 
 /**
- * The sets logged for an exercise in its most recent *completed* session,
- * regardless of day or program. In-progress sessions are ignored.
+ * The sets logged for an exercise in its most recent *completed* sessions, newest first,
+ * regardless of day or program, at most `n` of them. In-progress sessions and sessions
+ * where the exercise ended up with no logged rows are ignored.
  */
-export async function getLastCompletedSets(exerciseId: string, d: WorkoutDB = db): Promise<LastSets | null> {
+export async function getRecentCompletedSets(exerciseId: string, n: number, d: WorkoutDB = db): Promise<LastSets[]> {
   const logs = await d.setLogs.where('exerciseId').equals(exerciseId).toArray();
-  if (logs.length === 0) return null;
+  if (logs.length === 0) return [];
   const sessionIds = [...new Set(logs.map((l) => l.sessionId))];
   const sessions = (await d.sessions.bulkGet(sessionIds)).filter(
     (s): s is Session => s != null && s.completed === 1,
   );
-  if (sessions.length === 0) return null;
-  const latest = sessions.reduce((a, b) => ((b.finishedAt ?? 0) > (a.finishedAt ?? 0) ? b : a));
-  const sets = logs
-    .filter((l): l is LoggedSetLog => l.sessionId === latest.id && isLoggedRow(l))
-    .sort((a, b) => a.setNumber - b.setNumber)
-    .map(toLoggedSet);
-  return sets.length ? { session: latest, sets } : null;
+  sessions.sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0));
+  const out: LastSets[] = [];
+  for (const session of sessions) {
+    const sets = logs
+      .filter((l): l is LoggedSetLog => l.sessionId === session.id && isLoggedRow(l))
+      .sort((a, b) => a.setNumber - b.setNumber)
+      .map(toLoggedSet);
+    if (sets.length) out.push({ session, sets });
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
+/** The sets logged for an exercise in its most recent completed session. */
+export async function getLastCompletedSets(exerciseId: string, d: WorkoutDB = db): Promise<LastSets | null> {
+  return (await getRecentCompletedSets(exerciseId, 1, d))[0] ?? null;
 }
 
 export interface HistoryEntry {

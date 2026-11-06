@@ -90,8 +90,10 @@ export function emptyProgram(name = 'My program'): Program {
 }
 
 /** Why a slot's sets / reps aren't valid, or null when they are. */
-export function slotProblem(slot: SlotSpec): string | null {
+export function slotProblem(slot: SlotSpec & { introSets?: number }): string | null {
   if (!Number.isInteger(slot.sets) || slot.sets < 1) return 'sets must be at least 1';
+  if (slot.introSets != null && (!Number.isInteger(slot.introSets) || slot.introSets < 1)) return 'intro sets must be at least 1';
+  if (slot.rule !== 'linear' && slot.targetRpe == null) return 'needs an RPE goal (or the linear rule)';
   if (slot.progression === 'single') {
     if (!Number.isInteger(slot.targetReps) || (slot.targetReps ?? 0) < 1) return 'target reps must be at least 1';
   } else {
@@ -107,6 +109,7 @@ export function slotProblem(slot: SlotSpec): string | null {
 export function validateProgram(p: Program): void {
   if (!normalizeName(p.name)) throw new Error('Program needs a name');
   if (p.days.length === 0) throw new Error('Program needs at least one day');
+  if (p.introWeeks != null && (!Number.isInteger(p.introWeeks) || p.introWeeks < 0)) throw new Error('Intro weeks must be a whole number');
   for (const day of p.days) {
     for (const w of day.warmups ?? []) if (!normalizeName(w.name)) throw new Error(`${day.name}: a warm-up needs a name`);
     const seen = new Set<string>();
