@@ -75,7 +75,8 @@ const MAIN = { ...LIN, targetRpe: null };
  * when every set is completed; hold on a miss; drop 10% after two misses); accessories are rep ranges
  * at ~2 reps in reserve, adding the increment once every set reaches the top of the range. Weeks 1–2
  * use the reduced set counts (`introSets`). A1/A2 pairs are supersets. "Hanging Leg Raise or Ab Wheel"
- * ships as Hanging Leg Raise; swap in Ab Wheel on the day. "(1-2)" intro counts are taken as 1.
+ * is Ab Wheel (Matt's choice). "(1-2)" intro counts are taken as 1. Day 1's and Day 3's lateral raises are
+ * the same exercise.
  */
 export const THREE_DAY: ProgramTemplate = {
   name: '3x Lifting',
@@ -106,7 +107,7 @@ export const THREE_DAY: ProgramTemplate = {
         { name: 'Incline DB Press', sets: 3, reps: [8, 12], ...LIN, introSets: 2, superset: true },
         { name: 'Curl', sets: 3, reps: [10, 15], ...LIN, introSets: 2 },
         { name: 'Calf Raise', sets: 3, reps: [10, 15], ...LIN, introSets: 2, superset: true },
-        { name: 'Hanging Leg Raise', sets: 3, reps: [8, 15], ...LIN, introSets: 2, bodyweight: true },
+        { name: 'Ab Wheel', sets: 3, reps: [8, 15], ...LIN, introSets: 2, bodyweight: true },
       ],
     },
     {
@@ -120,7 +121,7 @@ export const THREE_DAY: ProgramTemplate = {
         { name: 'Leg Curl', sets: 3, reps: [10, 15], ...LIN, introSets: 2, superset: true },
         { name: 'Overhead Extension', sets: 3, reps: [10, 15], ...LIN, introSets: 2 },
         { name: 'Hammer Curl', sets: 2, reps: [10, 15], ...LIN, introSets: 1, superset: true },
-        { name: 'DB Lateral Raise', sets: 3, reps: [12, 20], ...LIN, introSets: 2 },
+        { name: 'Lateral Raise', sets: 3, reps: [12, 20], ...LIN, introSets: 2 },
         { name: 'Face Pull', sets: 2, reps: [12, 20], ...LIN, introSets: 2, superset: true },
       ],
     },

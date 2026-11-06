@@ -23,9 +23,10 @@ describe('3x Lifting template', () => {
     const exercises = await d.exercises.toArray();
     const inc = (name: string) => exercises.find((e) => e.name === name)!.loadIncrement;
     expect([inc('Back Squat'), inc('Bench Press'), inc('Deadlift'), inc('Overhead Press'), inc('Curl')]).toEqual([5, 5, 10, 2.5, 5]);
-    expect(exercises.find((e) => e.name === 'Hanging Leg Raise')!.bodyweight).toBe(true);
+    expect(exercises.find((e) => e.name === 'Ab Wheel')!.bodyweight).toBe(true);
     expect(exercises.filter((e) => e.name === 'Face Pull')).toHaveLength(1); // shared between Day 1 and Day 3
-    expect(exercises).toHaveLength(20);
+    expect(exercises.filter((e) => e.name === 'Lateral Raise')).toHaveLength(1); // same exercise on Day 1 and Day 3
+    expect(exercises).toHaveLength(19);
     // main lifts have no RPE goal; accessories keep 8; a by-RPE slot without a goal is invalid
     expect(p.days[0].slots.slice(0, 2).map((s) => s.targetRpe)).toEqual([undefined, undefined]);
     expect(p.days[0].slots.slice(2).every((s) => s.targetRpe === 8)).toBe(true);
@@ -73,7 +74,7 @@ describe('3x Lifting template', () => {
     const p = await loadTemplate(THREE_DAY, d);
     const plan = await buildPlan(p, 2, d);
     expect(supersetGroups(plan).map((g) => g.map((s) => s.exerciseName))).toEqual([
-      ['Back Squat'], ['Bench Press'], ['DB Reverse Lunge'], ['Cable Row', 'Leg Curl'], ['Overhead Extension', 'Hammer Curl'], ['DB Lateral Raise', 'Face Pull'],
+      ['Back Squat'], ['Bench Press'], ['DB Reverse Lunge'], ['Cable Row', 'Leg Curl'], ['Overhead Extension', 'Hammer Curl'], ['Lateral Raise', 'Face Pull'],
     ]);
     expect(plan.find((s) => s.exerciseName === 'Leg Curl')!.supersetWithPrev).toBe(true);
     expect(supersetGroups([{ supersetWithPrev: true }, {}]).map((g) => g.length)).toEqual([1, 1]); // a leading flag is ignored
@@ -133,14 +134,14 @@ describe('3x Lifting template', () => {
   it('a program-scope swap during the intro weeks keeps the intro count and the full count', async () => {
     const p = await loadTemplate(THREE_DAY, d);
     const plan = await buildPlan(p, 1, d, p.createdAt + 86400000);
-    const hlr = plan.find((s) => s.exerciseName === 'Hanging Leg Raise')!;
+    const hlr = plan.find((s) => s.exerciseName === 'Ab Wheel')!;
     expect([hlr.sets, hlr.fullSets]).toEqual([2, 3]);
     expect(specOf(hlr).sets).toBe(3); // the dialog is seeded with the full count
     const session = await startSession(p, 1, plan, d);
-    const wheel = await findOrCreateExercise('Ab Wheel', 5, d);
+    const wheel = await findOrCreateExercise('Hanging Leg Raise', 5, d);
     const after = await swapExercise({ sessionId: session.id, slotId: hlr.slotId, exerciseId: wheel.id, spec: { ...specOf(hlr) }, scope: 'program', bodyweight: true }, d);
     const swapped = after.plan.find((s) => s.slotId === hlr.slotId)!;
-    expect([swapped.exerciseName, swapped.sets, swapped.fullSets]).toEqual(['Ab Wheel', 2, 3]);
+    expect([swapped.exerciseName, swapped.sets, swapped.fullSets]).toEqual(['Hanging Leg Raise', 2, 3]);
     expect((await getSessionLogs(session.id, d)).filter((l) => l.slotId === hlr.slotId)).toHaveLength(2);
     const progSlot = (await getActiveProgram(d))!.days[1].slots.find((s) => s.id === hlr.slotId)!;
     expect([progSlot.exerciseId, progSlot.sets, progSlot.introSets]).toEqual([wheel.id, 3, 2]);
