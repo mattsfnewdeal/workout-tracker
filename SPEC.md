@@ -1,4 +1,4 @@
-# Workout Tracker — Spec (v1.4)
+# Workout Tracker — Spec (v1.5)
 
 A simple, personal lifting tracker. Runs as a PWA on iPhone (added to the home screen). One user, no backend, no accounts.
 
@@ -303,3 +303,29 @@ SetLog
    A swap starts from the slot's current scheme (e.g. 3 × 4–6 @ 8); an add starts from 3 × 5 @ 8. The swapped-in or added exercise gets the usual suggestion from its own history (or a first session with no load). Rows already logged for a swapped-out exercise are discarded; the dialog says so. The same exercise can't appear twice in a session or on a program day. The card shows a note: "Swapped in for Squat · this and future sessions" or "Added · this session only". History, progression and Finish treat such slots like any other.
 
    Data model: `PlannedSlot.change?: { kind: 'swap' | 'add'; scope: 'session' | 'program'; replaced?: string }`. A swap keeps the slot id (so a later swap of the same card, with program scope, still replaces the same program slot); its set rows are deleted and recreated. Implementation: `src/state/slotChanges.ts` (`swapExercise`, `addExercise`), one transaction over sessions, setLogs and programs.
+
+## v1.5 amendments (2026-11-06)
+
+1. **Suggested warm-up sets.** Once an exercise has a suggested working load, its card lists warm-up sets as checkbox-only chips ("130 × 6", "170 × 3") above the working sets: no RPE, not logged, not in History, never required to Finish. A first session has no working load and so gets none. The list is snapshotted onto the session (`PlannedSlot.warmupSets?: { load, reps, done }[]`), ticks write through immediately, and a swap or add recomputes it for the new exercise. Today shows the same list as a line under the suggestion.
+
+   The rule (`src/engine/warmup.ts`) is a synthesis of coaching sources, not a published table. Points the sources agree on: warm-ups ramp from light to the working weight and stop a point or two of RPE short of it, so none is recorded; the heaviest warm-up lands around 80–90 % of the working load; the number of sets scales with the load and drops for lower reps; dumbbell / cable / machine work needs one or two sets and isolation work none; and there is nothing to warm up to until a working weight exists.
+
+   | Lift class (from the name) | Working load (lb) | Sets, as % of the working load | Reps |
+   |---|---|---|---|
+   | Main (barbell, trap bar, unknown) | < 95 | none | |
+   | | 95–154 | 60 | |
+   | | 155–224 | 60, 80 | 40 % and 60 %: min(target, 8) |
+   | | 225–314 | 40, 60, 80 | 80 %: min(target, 3) |
+   | | ≥ 315 | 40, 60, 80, 90 | 90 %: min(target, 2) |
+   | Main with a target of ≤ 3 reps | | one tier higher (max 4 sets) | |
+   | Light (name starts "DB", "Dumbbell", "Cable", "Machine", "KB", "Band", "Smith", or contains "pulldown", "leg press", …) | < 30 | none | |
+   | | 30–99 | 60 | |
+   | | ≥ 100 | 60, 80 | |
+   | Isolation (name contains "curl", "raise", "extension", "OTE", "pushdown", "fly", "face pull", "Pallof", "shrug", "calf", "plank", …) | any | none | |
+   | Bodyweight exercise | any | BW × min(target, 5); plus 60 % of the added weight × min(target, 3) when ≥ 30 lb is added | |
+
+   Loads round to the exercise's increment; a rung that rounds onto the previous one or within one increment of the working load is dropped. The target for a rep range is its bottom. Worked examples: Squat 230 × 5 → 90 × 5, 140 × 5, 185 × 3. Bench 215 × 6–8 → 130 × 6, 170 × 3. Trap bar 315 × 4–6 → 125 × 4, 190 × 4, 250 × 3, 285 × 2. DB Bench 70 × 6–8 → 40 × 6. DB Incline Curl → none.
+
+   Sources (fetched 2026-11-06): Barbell Medicine forum, Jordan Feigenbaum: 3–5 sets evenly spaced from the bar to the working weight, same reps, last one 1–2 RPE under, 1–2 sets for dumbbell work, none until a weight is known — https://forum.barbellmedicine.com/t/how-should-i-warm-up/6369 , https://forum.barbellmedicine.com/t/how-to-warm-up-to-find-the-correct-weight-for-the-prescribed-intensity/11238 , https://forum.barbellmedicine.com/t/dumbell-press-on-powerbuilding-1-0/5717 . RTS, "Beginning RTS": RPE below 7 is warm-up territory; work up by feel — https://store.reactivetrainingsystems.com/blogs/rts-basics/beginning-rts . Stronger By Science, Milo Wolf 2024: the heavier (~80 %) warm-up set is the one that improves performance; 1–2 sets — https://www.strongerbyscience.com/heavier-warm-ups/ . Percent ladders: Hevy 40/60/80 — https://www.hevyapp.com/warm-up-sets/ ; Lift Vault 40/55/70/85 with tapering reps — https://liftvault.com/resources/warmup-set-calculator/ ; A Workout Routine (isolation and dumbbell work needs little or none) — https://www.aworkoutroutine.com/warm-up-sets/ ; 5/3/1 40/50/60 % × 5/5/3 (secondary: thefitness.wiki). Starting Strength's 3–5 sets with tapering reps could only be read from secondary sources (startingstrength.com returned 403). Judgment calls, not sourced: the exact load tiers (95/155/225/315), the name keyword lists, the per-rung rep caps, and the bodyweight scheme.
+
+2. **Bodyweight exercises.** `Exercise.bodyweight` (toggle beside Increment in the builder, and in the swap / add dialog; the preloaded Chin is flagged) means the logged load is *added* weight. Rows show "BW" as the placeholder and may be left empty; Finish stores them as a load of 0, which History and progression accept only for bodyweight slots (`checkFinish` still rejects an empty or zero load elsewhere). A negative added weight is refused. Display is "BW" or "BW +25" everywhere a load appears. Progression (`src/engine/bodyweight.ts`) makes the single / double decisions on reps and RPE alone, since an e1RM from added weight means nothing: progress → one increment more, the recalc branches → one increment less (never below 0), hold → same; confidence is normal and no e1RM is shown. Snapshotted on the session as `PlannedSlot.bodyweight`.

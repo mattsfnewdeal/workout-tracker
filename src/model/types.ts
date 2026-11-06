@@ -7,6 +7,8 @@ export interface Exercise {
   name: string;
   /** Smallest load step for this exercise, in lb (e.g. 5 for a barbell, 2.5 with microplates). */
   loadIncrement: number;
+  /** Chins, dips: the logged load is added weight and may be 0. Absent = false. */
+  bodyweight?: boolean;
   createdAt: number;
 }
 
@@ -66,6 +68,13 @@ export interface SlotChange {
   replaced?: string;
 }
 
+/** A suggested warm-up set: load and reps only, ticked off when done. Never logged, never in History. */
+export interface WarmupSet {
+  load: number;
+  reps: number;
+  done: boolean;
+}
+
 /** Snapshot of one slot at the moment a session starts (or when it is swapped / added mid-session). */
 export interface PlannedSlot {
   slotId: string;
@@ -73,9 +82,13 @@ export interface PlannedSlot {
   exerciseName: string;
   sets: number;
   increment: number;
+  /** Snapshot of the exercise's flag: a load of 0 (or none typed) is bodyweight. */
+  bodyweight?: boolean;
   /** When the exercise was last logged (completed session), for the Today screen. */
   lastSessionAt?: number;
   suggestion: Suggestion;
+  /** Suggested warm-up sets, computed from the suggested working load. Absent on a first session (no load yet) and on sessions from before v1.5. */
+  warmupSets?: WarmupSet[];
   /** Absent on slots that came from the program as planned. */
   change?: SlotChange;
 }

@@ -1,7 +1,7 @@
 import { DEFAULT_TARGET_RPE } from '../engine';
 import type { Program, Slot } from '../model/types';
 import { db, type WorkoutDB } from './db';
-import { DEFAULT_INCREMENT, createProgram, emptyProgram, findOrCreateExercise, newDay, newSlot, newWarmup } from './ops';
+import { DEFAULT_INCREMENT, createProgram, emptyProgram, findOrCreateExercise, newDay, newSlot, newWarmup, updateExercise } from './ops';
 
 export interface TemplateSlot {
   name: string;
@@ -10,6 +10,8 @@ export interface TemplateSlot {
   reps: number | [number, number];
   targetRpe?: number;
   increment?: number;
+  /** Load is added weight; 0 / empty means bodyweight. */
+  bodyweight?: boolean;
 }
 export interface TemplateDay {
   name: string;
@@ -34,7 +36,7 @@ export const PRELOADED: ProgramTemplate = {
         { name: 'Squat', sets: 3, reps: [4, 6] },
         { name: 'DB Bench', sets: 3, reps: [6, 8] },
         { name: 'DB SLDL', sets: 3, reps: 10 },
-        { name: 'Chin', sets: 3, reps: [6, 10] },
+        { name: 'Chin', sets: 3, reps: [6, 10], bodyweight: true },
         { name: 'Pallof Press', sets: 3, reps: 10 },
         { name: 'DB Incline Curl', sets: 2, reps: [12, 15] },
       ],
@@ -63,6 +65,7 @@ export async function loadTemplate(t: ProgramTemplate, d: WorkoutDB = db): Promi
     day.warmups = td.warmups.map((w) => newWarmup(w.name, w.note));
     for (const ts of td.slots) {
       const ex = await findOrCreateExercise(ts.name, ts.increment ?? DEFAULT_INCREMENT, d);
+      if (ts.bodyweight && !ex.bodyweight) await updateExercise(ex.id, { bodyweight: true }, d);
       const shape: Partial<Slot> = Array.isArray(ts.reps)
         ? { progression: 'double', repMin: ts.reps[0], repMax: ts.reps[1] }
         : { progression: 'single', targetReps: ts.reps };

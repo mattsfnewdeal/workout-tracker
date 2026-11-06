@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { db } from '../db/db';
-import { setWarmupDone, updateSetLog, type SetLogPatch } from '../db/ops';
+import { setWarmupDone, setWarmupSetDone, updateSetLog, type SetLogPatch } from '../db/ops';
 import { getSessionLogs } from '../db/queries';
 import type { ChangeScope, Session, SetLog, SlotSpec } from '../model/types';
 import { addExercise, swapExercise } from './slotChanges';
@@ -55,6 +55,17 @@ export function useActiveSession(sessionId: string) {
     );
   }, [sessionId]);
 
+  const toggleWarmupSet = useCallback((slotId: string, index: number, done: boolean) => {
+    setState((s) => (s ? {
+      ...s,
+      session: { ...s.session, plan: s.session.plan.map((slot) => (slot.slotId === slotId && slot.warmupSets ? { ...slot, warmupSets: slot.warmupSets.map((w, i) => (i === index ? { ...w, done } : w)) } : slot)) },
+    } : s));
+    setWarmupSetDone(sessionId, slotId, index, done).then(
+      () => setSaveError(null),
+      (e: Error) => setSaveError(`Couldn’t save: ${e.message}`),
+    );
+  }, [sessionId]);
+
   /** Swap one slot's exercise or add a slot; the session and its rows are re-read from Dexie afterwards. Errors propagate to the caller. */
   const changeSlot = useCallback(async (change: { slotId?: string; exerciseId: string; spec: SlotSpec; scope: ChangeScope }) => {
     const req = { sessionId, exerciseId: change.exerciseId, spec: change.spec, scope: change.scope };
@@ -63,5 +74,5 @@ export function useActiveSession(sessionId: string) {
     setState({ session, logs });
   }, [sessionId]);
 
-  return { state, update, toggleWarmup, changeSlot, saveError };
+  return { state, update, toggleWarmup, toggleWarmupSet, changeSlot, saveError };
 }

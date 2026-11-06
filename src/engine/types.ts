@@ -1,6 +1,13 @@
+interface BaseParams {
+  targetRpe: number;
+  increment: number;
+  /** Load is added weight (0 = bodyweight). Progression steps by increments instead of e1RM. */
+  bodyweight?: boolean;
+}
+
 export type SlotParams =
-  | { progression: 'single'; targetReps: number; targetRpe: number; increment: number }
-  | { progression: 'double'; repMin: number; repMax: number; targetRpe: number; increment: number };
+  | (BaseParams & { progression: 'single'; targetReps: number })
+  | (BaseParams & { progression: 'double'; repMin: number; repMax: number });
 
 export type SingleParams = Extract<SlotParams, { progression: 'single' }>;
 export type DoubleParams = Extract<SlotParams, { progression: 'double' }>;

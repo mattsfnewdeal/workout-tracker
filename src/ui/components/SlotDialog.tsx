@@ -14,7 +14,7 @@ interface Props {
   dayName: string;
   onCancel: () => void;
   /** Resolves when the change is saved; rejects with a message to show. */
-  onSubmit: (exerciseName: string, spec: SlotSpec, scope: ChangeScope) => Promise<void>;
+  onSubmit: (exerciseName: string, spec: SlotSpec, scope: ChangeScope, bodyweight: boolean) => Promise<void>;
 }
 
 const DEFAULT_SPEC: SlotSpec = { sets: 3, progression: 'single', targetReps: 5, targetRpe: DEFAULT_TARGET_RPE };
@@ -31,6 +31,12 @@ function SlotForm({ mode, dayName, onCancel, onSubmit }: Props & { mode: SlotDia
   const [name, setName] = useState('');
   const [spec, setSpec] = useState<SlotSpec>(() => (mode.kind === 'swap' ? specOf(mode.slot) : DEFAULT_SPEC));
   const [scope, setScope] = useState<ChangeScope>('session');
+  const [bodyweight, setBodyweight] = useState(false);
+  const [bwTouched, setBwTouched] = useState(false);
+  const lower = name.trim().toLowerCase();
+  const existing = exercises.find((e) => e.name.toLowerCase() === lower);
+  // An existing exercise's flag shows as soon as its name is typed, unless the box was set by hand.
+  const bwShown = bwTouched ? bodyweight : !!existing?.bodyweight;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -42,7 +48,7 @@ function SlotForm({ mode, dayName, onCancel, onSubmit }: Props & { mode: SlotDia
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(name, spec, scope);
+      await onSubmit(name, spec, scope, bwShown);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -67,6 +73,10 @@ function SlotForm({ mode, dayName, onCancel, onSubmit }: Props & { mode: SlotDia
         <datalist id="slot-dialog-exercises">
           {exercises.map((e) => <option key={e.id} value={e.name} />)}
         </datalist>
+      </label>
+      <label class="check" style="min-height:36px; margin-top:8px">
+        <input type="checkbox" checked={bwShown} onChange={(e) => { setBwTouched(true); setBodyweight(e.currentTarget.checked); }} />
+        <span>Bodyweight<span class="muted small"> · load is added weight, leave empty for none</span></span>
       </label>
       <SlotFields slot={spec} onChange={setSpec} />
       <div class="stack" style="margin-top:14px" role="radiogroup" aria-label="Apply to">

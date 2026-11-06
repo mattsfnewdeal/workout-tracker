@@ -5,6 +5,12 @@ export function fmtLoad(n: number): string {
   return n.toFixed(2).replace(/\.?0+$/, '');
 }
 
+/** A load as the lifter reads it: "225", or for a bodyweight exercise "BW" / "BW +25". */
+export function fmtLoadBw(load: number, bodyweight?: boolean): string {
+  if (!bodyweight) return fmtLoad(load);
+  return load > 0 ? `BW +${fmtLoad(load)}` : 'BW';
+}
+
 export function fmtRpe(r: number | null | undefined): string {
   return r == null ? '—' : String(r);
 }
@@ -15,9 +21,9 @@ export function fmtRepTarget(t: RepTarget): string {
 }
 
 /** "225 × 5 @ 8" / "185 × 6–8 @ 8", or "5 reps @ 8" / "6–8 reps @ 8" on a first session (no load yet). */
-export function fmtSuggestion(s: Suggestion): string {
+export function fmtSuggestion(s: Suggestion, bodyweight?: boolean): string {
   const reps = fmtRepTarget(s.repTarget);
-  return s.load == null ? `${reps} reps @ ${s.targetRpe}` : `${fmtLoad(s.load)} × ${reps} @ ${s.targetRpe}`;
+  return s.load == null ? `${reps} reps @ ${s.targetRpe}` : `${fmtLoadBw(s.load, bodyweight)} × ${reps} @ ${s.targetRpe}`;
 }
 
 export function fmtDate(ts?: number): string {

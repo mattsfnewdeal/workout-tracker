@@ -4,9 +4,9 @@ import { db, type WorkoutDB } from './db';
 
 type LoggedSetLog = SetLog & { load: number; reps: number };
 
-/** A row that counts: it has reps and a real load. Anything else never reaches the engine or History. */
+/** A row that counts: it has reps and a load. 0 is a load only for bodyweight rows; checkFinish keeps it out of every other slot. */
 export function isLoggedRow(l: SetLog): l is LoggedSetLog {
-  return l.reps != null && l.load != null && l.load > 0;
+  return l.reps != null && l.load != null && l.load >= 0;
 }
 
 export function toLoggedSet(l: LoggedSetLog): LoggedSet {

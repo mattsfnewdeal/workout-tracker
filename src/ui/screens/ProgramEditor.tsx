@@ -359,9 +359,13 @@ function SlotEditor({ slot, exercise, index, count, onChange, onMove, onDelete }
             disabled={!exercise}
           />
         </label>
+        <label class="check grow" style="min-height:48px; align-self:flex-end">
+          <input type="checkbox" checked={!!exercise?.bodyweight} disabled={!exercise} aria-label={`${exercise?.name ?? 'Exercise'} is bodyweight`} onChange={(e) => { if (exercise) void updateExercise(exercise.id, { bodyweight: e.currentTarget.checked }); }} />
+          <span class="small">Bodyweight</span>
+        </label>
       </div>
       <p class="muted small" style="margin:6px 0 0">
-        Increment is per exercise{exercise ? ` (${exercise.name}, currently ${fmtLoad(exercise.loadIncrement)} lb)` : ''} and saves immediately.
+        Increment and Bodyweight are per exercise{exercise ? ` (${exercise.name}, currently ${fmtLoad(exercise.loadIncrement)} lb${exercise.bodyweight ? ', bodyweight' : ''})` : ''} and save immediately. Bodyweight: the load is added weight; leave it empty for none.
       </p>
       {offChart && (
         <p class="small" style="color: var(--warn); margin:6px 0 0">

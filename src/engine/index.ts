@@ -7,3 +7,4 @@ export { suggestDouble } from './double';
 export { suggestSingle, MIN_PROGRESS_RATIO } from './single';
 export { suggestFallback } from './fallback';
 export { suggest, reasonText } from './suggest';
+export * from './warmup';

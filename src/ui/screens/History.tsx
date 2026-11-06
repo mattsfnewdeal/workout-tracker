@@ -1,6 +1,6 @@
 import { getExerciseHistory, getExercisesWithHistory } from '../../db/queries';
 import { useLiveQuery } from '../../db/useLiveQuery';
-import { fmtDate, fmtLoad, fmtRpe } from '../format';
+import { fmtDate, fmtLoadBw, fmtRpe } from '../format';
 import { navigate } from '../router';
 
 export function History({ exerciseId }: { exerciseId?: string }) {
@@ -37,7 +37,7 @@ export function History({ exerciseId }: { exerciseId?: string }) {
                     <thead><tr><th>Set</th><th>Load</th><th>Reps</th><th>RPE</th></tr></thead>
                     <tbody>
                       {sets.map((s) => (
-                        <tr key={s.setNumber}><td>{s.setNumber}</td><td>{fmtLoad(s.load)}</td><td>{s.reps}</td><td>{fmtRpe(s.rpe)}</td></tr>
+                        <tr key={s.setNumber}><td>{s.setNumber}</td><td>{fmtLoadBw(s.load, selected.bodyweight)}</td><td>{s.reps}</td><td>{fmtRpe(s.rpe)}</td></tr>
                       ))}
                     </tbody>
                   </table>

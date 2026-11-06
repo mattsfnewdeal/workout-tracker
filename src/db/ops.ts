@@ -29,7 +29,7 @@ export async function findOrCreateExercise(
   return ex;
 }
 
-export async function updateExercise(id: string, patch: Partial<Pick<Exercise, 'name' | 'loadIncrement'>>, d: WorkoutDB = db) {
+export async function updateExercise(id: string, patch: Partial<Pick<Exercise, 'name' | 'loadIncrement' | 'bodyweight'>>, d: WorkoutDB = db) {
   const clean: typeof patch = { ...patch };
   if (clean.name != null) clean.name = normalizeName(clean.name);
   await d.exercises.update(id, clean);
@@ -146,8 +146,9 @@ export function setRowsFor(sessionId: string, slot: PlannedSlot): SetLog[] {
   for (let n = 1; n <= slot.sets; n++) {
     const row: SetLog = { id: newId(), sessionId, slotId: slot.slotId, exerciseId: slot.exerciseId, setNumber: n };
     if (slot.suggestion.load != null) {
-      row.load = slot.suggestion.load;
       row.suggestedLoad = slot.suggestion.load;
+      // A bodyweight slot's "0" stays an empty field (BW); anything typed is added weight.
+      if (!(slot.bodyweight && slot.suggestion.load === 0)) row.load = slot.suggestion.load;
     }
     logs.push(row);
   }
@@ -187,6 +188,20 @@ export async function setWarmupDone(sessionId: string, itemId: string, done: boo
   });
 }
 
+/** Tick or untick one suggested warm-up set of a slot on an in-progress session. */
+export async function setWarmupSetDone(sessionId: string, slotId: string, index: number, done: boolean, d: WorkoutDB = db): Promise<void> {
+  await d.transaction('rw', d.sessions, async () => {
+    const s = await d.sessions.get(sessionId);
+    if (!s) return;
+    const plan = s.plan.map((slot) =>
+      slot.slotId === slotId && slot.warmupSets?.[index]
+        ? { ...slot, warmupSets: slot.warmupSets.map((w, i) => (i === index ? { ...w, done } : w)) }
+        : slot,
+    );
+    await d.sessions.update(sessionId, { plan });
+  });
+}
+
 export type SetLogPatch = Partial<Pick<SetLog, 'load' | 'reps' | 'rpe'>>;
 
 export function updateSetLog(id: string, patch: SetLogPatch, d: WorkoutDB = db): Promise<number> {
@@ -215,7 +230,9 @@ export function checkFinish(session: Session, logs: SetLog[]): FinishCheck {
     const set1 = rows.find((l) => l.setNumber === 1);
     if (set1 && set1.reps != null && set1.rpe == null) problems.push(`${slot.exerciseName}: set 1 needs an RPE`);
     for (const l of logged) {
-      if (l.load == null) problems.push(`${slot.exerciseName} set ${l.setNumber}: enter the load`);
+      if (slot.bodyweight) {
+        if (l.load != null && l.load < 0) problems.push(`${slot.exerciseName} set ${l.setNumber}: added weight can't be negative`);
+      } else if (l.load == null) problems.push(`${slot.exerciseName} set ${l.setNumber}: enter the load`);
       else if (!(l.load > 0)) problems.push(`${slot.exerciseName} set ${l.setNumber}: load must be above 0`);
       if (!Number.isInteger(l.reps) || (l.reps ?? 0) < 0) problems.push(`${slot.exerciseName} set ${l.setNumber}: reps must be a whole number`);
     }
@@ -234,6 +251,9 @@ export async function finishSession(sessionId: string, d: WorkoutDB = db): Promi
     if (problems.length) throw new Error(problems.join('\n'));
     const unlogged = logs.filter((l) => l.reps == null).map((l) => l.id);
     if (unlogged.length) await d.setLogs.bulkDelete(unlogged);
+    // Bodyweight rows logged with the load left empty are bodyweight: store 0 so they count in History and progression.
+    const bwSlots = new Set(session.plan.filter((s) => s.bodyweight).map((s) => s.slotId));
+    for (const l of logs) if (l.reps != null && l.load == null && bwSlots.has(l.slotId)) await d.setLogs.update(l.id, { load: 0 });
     await d.sessions.update(sessionId, { completed: 1, finishedAt: Date.now() });
     const program = await d.programs.get(session.programId);
     if (program && program.days.length) {

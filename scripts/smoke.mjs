@@ -119,6 +119,7 @@ await step('finish advances to Day B, whose range slot is a first session', asyn
   const big = await text('li.card .big-number');
   assert(big === '6–8 reps @ 8', `big number "${big}"`);
   assert((await cardText()).includes('First session'), 'not a first session');
+  assert(!(await cardText()).includes('Warm-up sets'), 'a first session must not suggest warm-up sets');
   await shot('06-today-dayB-first');
 });
 
@@ -138,7 +139,7 @@ await step('start Day B and log 185 × 9 @ 7, 8, 7', async () => {
 
 await step('pointer wrapped to Day A → 230 × 5 @ 8', async () => {
   const t = await cardText();
-  for (const s of ['230 × 5 @ 8', 'All sets clean', 'Last set 1: 225 × 5 @ 7']) assert(t.includes(s), `missing "${s}" in: ${t}`);
+  for (const s of ['230 × 5 @ 8', 'All sets clean', 'Last set 1: 225 × 5 @ 7', 'Warm-up sets: 90 × 5, 140 × 5, 185 × 3']) assert(t.includes(s), `missing "${s}" in: ${t}`);
   assert(!t.includes('big jump'), 'unexpected big jump');
   await shot('07-today-230');
 });
@@ -153,7 +154,28 @@ await step('point to Day B → double progression suggests 215 × 6–8 @ 8 with
   const t = await cardText();
   for (const s of ['215 × 6–8 @ 8', 'Beat the top of the range', 'big jump', 'Last set 1: 185 × 9 @ 7', '(range 6–8)']) assert(t.includes(s), `missing "${s}" in: ${t}`);
   assert(!t.includes('beat 9'), 'unexpected beat badge');
+  assert(t.includes('Warm-up sets: 130 × 6, 170 × 3'), `warm-up sets missing in: ${t}`);
   await shot('08-today-215');
+});
+
+await step('warm-up sets in a session are checkboxes that persist and never block', async () => {
+  await page.getByRole('button', { name: 'Start Day B' }).click();
+  await page.waitForURL(/#\/log\//);
+  const w1 = page.getByRole('checkbox', { name: 'Bench Press warm-up 130 × 6' });
+  const w2 = page.getByRole('checkbox', { name: 'Bench Press warm-up 170 × 3' });
+  await w1.waitFor();
+  assert((await page.locator('.warmup-set').count()) === 2, 'expected two warm-up chips');
+  assert((await page.locator('.set-row').count()) === 3, 'warm-ups must not add set rows');
+  await w1.check();
+  await page.waitForTimeout(250);
+  await shot('08b-log-warmup-sets');
+  await page.reload();
+  await w1.waitFor();
+  assert(await w1.isChecked(), 'warm-up tick lost on reload');
+  assert(!(await w2.isChecked()), 'second warm-up should be unticked');
+  await page.getByRole('button', { name: 'Abandon' }).first().click();
+  await page.getByRole('button', { name: 'Abandon', exact: true }).last().click();
+  await page.getByText('Next: Day B').waitFor();
 });
 
 await step('history shows e1RM 286 for Squat and 272 for Bench Press', async () => {
@@ -267,18 +289,53 @@ await step('swap Squat → Leg Press for future Tuesdays; add Face Pull just for
   await page.locator('.card-title', { hasText: 'Face Pull' }).waitFor();
   assert((await page.locator('.card-title', { hasText: 'Squat' }).count()) === 0, 'Squat came back after reload');
 
-  await page.getByRole('button', { name: 'Abandon' }).first().click();
-  await page.getByRole('button', { name: 'Abandon', exact: true }).last().click();
-  await page.getByText('Next: Tuesday').waitFor();
-  const today = await page.locator('main').innerText();
-  assert(today.includes('Leg Press') && !today.includes('Squat') && !today.includes('Face Pull'), today);
+});
+
+await step('Chin is bodyweight: logs with no load, shows BW in History, holds at BW next time', async () => {
+  const chin = page.locator('li.card', { hasText: 'Chin' });
+  assert((await chin.getByLabel('Set 1 load').getAttribute('placeholder')) === 'BW', 'bodyweight rows should show BW');
+  assert((await chin.innerText()).includes('leave the load empty for bodyweight'), await chin.innerText());
+  for (const n of [1, 2, 3]) await chin.getByLabel(`Set ${n} reps`).fill('8');
+  await chin.getByRole('button', { name: /^Set 1 RPE/ }).click();
+  await chin.getByRole('radio', { name: '8', exact: true }).click();
+  assert((await chin.locator('.set-row.good').count()) === 3, 'chin sets should be green');
+  await chin.locator('.card-head').click();
+  assert((await chin.locator('.summary').innerText()).includes('BW × 8 @ 8'), await chin.locator('.summary').innerText());
+  await shot('17-log-chin-bw');
+  await page.getByRole('button', { name: 'Finish' }).click();
+  await page.getByText('Finish without these?').waitFor();
+  await page.getByRole('button', { name: 'Finish anyway' }).click();
+  await page.getByText('Next: Thursday').waitFor();
+
+  await page.getByRole('link', { name: 'History' }).click();
+  await page.getByLabel('Exercise').selectOption({ label: 'Chin' });
+  await page.getByText('e1RM from set 1: —').waitFor();
+  const hist = await page.locator('li.card').first().innerText();
+  assert(hist.includes('BW') && hist.includes('8'), hist);
+  await shot('18-history-chin');
+
   await page.getByRole('link', { name: 'Program' }).click();
+  await page.getByLabel('Next session').selectOption('0');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.getByText('Saved', { exact: true }).first().waitFor();
   const tue = page.locator('section.card').nth(0);
+  assert(await tue.getByLabel('Chin is bodyweight').isChecked(), 'Chin should be flagged bodyweight in the editor');
+  assert(!(await tue.getByLabel('Leg Press is bodyweight').isChecked()), 'Leg Press should not be bodyweight');
   await tue.locator('strong', { hasText: 'Leg Press' }).waitFor();
   assert((await tue.locator('strong', { hasText: 'Squat' }).count()) === 0, 'Squat should have been replaced on Tuesday');
   assert((await tue.getByLabel('Min reps').first().inputValue()) === '4', 'swapped slot should keep 4–6');
   assert((await page.locator('strong', { hasText: 'Face Pull' }).count()) === 0, 'one-off Face Pull leaked into the program');
   await shot('16-program-after-swap');
+
+  await page.getByRole('link', { name: 'Today' }).click();
+  await page.getByText('Next: Tuesday').waitFor();
+  const today = await page.locator('main').innerText();
+  assert(today.includes('Leg Press') && !today.includes('Squat') && !today.includes('Face Pull'), today);
+  const chinCard = page.locator('li.card', { hasText: 'Chin' });
+  const ct = await chinCard.innerText();
+  for (const s of ['BW × 6–10 @ 8', 'beat 8', 'Warm-up sets: BW × 5', 'Last set 1: BW × 8 @ 8']) assert(ct.includes(s), `missing "${s}" in: ${ct}`);
+  assert(!ct.includes('low confidence'), 'bodyweight must not be low confidence');
+  await shot('19-today-chin-hold');
 });
 
 await step('import restores the backup and the 215 suggestion', async () => {

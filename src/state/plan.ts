@@ -1,10 +1,10 @@
-import { suggest, type SlotParams } from '../engine';
+import { suggest, warmupSets, type SlotParams } from '../engine';
 import type { Exercise, PlannedSlot, Program, Slot } from '../model/types';
 import { db, type WorkoutDB } from '../db/db';
 import { getLastCompletedSets } from '../db/queries';
 
 export function toSlotParams(slot: Slot, exercise: Exercise): SlotParams {
-  const common = { targetRpe: slot.targetRpe, increment: exercise.loadIncrement };
+  const common = { targetRpe: slot.targetRpe, increment: exercise.loadIncrement, ...(exercise.bodyweight ? { bodyweight: true } : {}) };
   return slot.progression === 'single'
     ? { progression: 'single', targetReps: slot.targetReps ?? 5, ...common }
     : { progression: 'double', repMin: slot.repMin ?? 6, repMax: slot.repMax ?? 8, ...common };
@@ -20,8 +20,12 @@ export async function planSlot(slot: Slot, exercise: Exercise, d: WorkoutDB = db
     exerciseName: exercise.name,
     sets: slot.sets,
     increment: exercise.loadIncrement,
+    ...(exercise.bodyweight ? { bodyweight: true } : {}),
     ...(last?.session.finishedAt != null ? { lastSessionAt: last.session.finishedAt } : {}),
     suggestion,
+    ...(suggestion.load != null
+      ? { warmupSets: warmupSets({ workingLoad: suggestion.load, increment: exercise.loadIncrement, repTarget: suggestion.repTarget, exerciseName: exercise.name, bodyweight: !!exercise.bodyweight }).map((w) => ({ ...w, done: false })) }
+      : {}),
   };
 }
 

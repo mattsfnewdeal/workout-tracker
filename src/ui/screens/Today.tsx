@@ -6,7 +6,7 @@ import { useLiveQuery } from '../../db/useLiveQuery';
 import { buildPlan } from '../../state/plan';
 import type { PlannedSlot } from '../../model/types';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { fmtAgo, fmtDate, fmtLoad, fmtRepTarget, fmtRpe, fmtSuggestion } from '../format';
+import { fmtAgo, fmtDate, fmtLoadBw, fmtRepTarget, fmtRpe, fmtSuggestion } from '../format';
 import { navigate } from '../router';
 
 export function Today() {
@@ -126,7 +126,7 @@ function SlotCard({ slot }: { slot: PlannedSlot }) {
         <span class="muted">{slot.sets} sets</span>
       </div>
       <div class="big-number">
-        {fmtSuggestion(s)}
+        {fmtSuggestion(s, slot.bodyweight)}
         {beat != null && <span class="muted"> · beat {beat}</span>}
       </div>
       <div class="row gap wrap">
@@ -134,9 +134,12 @@ function SlotCard({ slot }: { slot: PlannedSlot }) {
         {s.confidence === 'low' && <span class="badge badge-warn">low confidence</span>}
         {s.bigJump && <span class="badge badge-warn">big jump</span>}
       </div>
+      {slot.warmupSets && slot.warmupSets.length > 0 && (
+        <div class="small muted">Warm-up sets: {slot.warmupSets.map((w) => `${fmtLoadBw(w.load, slot.bodyweight)} × ${w.reps}`).join(', ')}</div>
+      )}
       {s.basis && (
         <div class="small muted">
-          Last set 1: {fmtLoad(s.basis.load)} × {s.basis.reps} @ {fmtRpe(s.basis.rpe)}
+          Last set 1: {fmtLoadBw(s.basis.load, slot.bodyweight)} × {s.basis.reps} @ {fmtRpe(s.basis.rpe)}
           {slot.lastSessionAt ? ` · ${fmtDate(slot.lastSessionAt)}` : ''}
           {s.repTarget.kind === 'fixed' ? '' : ` (range ${fmtRepTarget(s.repTarget)})`}
         </div>

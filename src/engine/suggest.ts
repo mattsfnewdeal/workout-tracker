@@ -1,3 +1,4 @@
+import { suggestBodyweight } from './bodyweight';
 import { findSet1, firstSession } from './common';
 import { suggestDouble } from './double';
 import { suggestSingle } from './single';
@@ -9,6 +10,7 @@ import type { LoggedSet, SlotParams, Suggestion, SuggestionReason } from './type
  */
 export function suggest(p: SlotParams, last: LoggedSet[] | null | undefined): Suggestion {
   if (!last || last.length === 0 || !findSet1(last)) return firstSession(p);
+  if (p.bodyweight) return suggestBodyweight(p, last);
   return p.progression === 'single' ? suggestSingle(p, last) : suggestDouble(p, last);
 }
 
