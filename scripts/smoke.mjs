@@ -21,7 +21,9 @@ const waitValue = async (loc, want, ms = 2000) => { const t = Date.now(); for (;
 const cardText = () => text('li.card');
 const setRow = (n) => page.locator('.set-row').nth(n);
 const rpeChip = (row) => setRow(row).getByRole('button', { name: /^Set \d+ RPE(,|$)/ });
-const pickRpe = async (row, value) => { await rpeChip(row).click(); await setRow(row).getByRole('radio', { name: value, exact: true }).click(); };
+const rpeBar = () => page.locator('.rpe-bar');
+const pickRpe = async (row, value) => { await rpeChip(row).click(); await rpeBar().getByRole('radio', { name: value, exact: true }).click(); };
+const activeLabel = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? null);
 
 await step('fresh app shows empty state', async () => {
   await page.goto(BASE);
@@ -92,9 +94,19 @@ await step('start Day A: loads start empty, set 1 copies down', async () => {
   assert((await page.getByLabel('Set 3 load').inputValue()) === '235', 'set 3 should still hold its own value');
   await page.getByLabel('Set 3 load').fill('225');
   for (const n of [1, 2, 3]) await page.getByLabel(`Set ${n} reps`).fill('5');
-  await pickRpe(0, '7');
-  await pickRpe(1, '6.5'); // more than a point under the goal → 'easy' (blue)
-  assert((await rpeChip(1).innerText()).trim() === '6.5', 'chip should show the picked RPE');
+  // Enter flow: load → reps → RPE bar → (pick) → next set
+  await page.getByLabel('Set 1 load').focus();
+  await page.keyboard.press('Enter');
+  assert((await activeLabel()) === 'Set 1 reps', `Enter on load should focus reps, got ${await activeLabel()}`);
+  await page.keyboard.press('Enter');
+  await rpeBar().waitFor();
+  assert((await rpeBar().innerText()).includes('Set 1 · RPE'), 'bar should name the set');
+  assert((await page.locator('.set-row .rpe').count()) === 0, 'no inline picker inside the row');
+  await rpeBar().getByRole('radio', { name: '7', exact: true }).click();
+  assert((await rpeBar().count()) === 0, 'bar should close after a pick');
+  assert((await activeLabel()) === 'Set 2 reps', `after picking, focus should move to set 2's reps (its load is filled), got ${await activeLabel()}`);
+  await pickRpe(1, '<6'); // under the chart → 'easy' (blue)
+  assert((await rpeChip(1).innerText()).trim() === '<6', 'chip should show <6');
   await shot('04-log');
   assert((await page.locator('.set-row.easy').count()) === 1 && (await page.locator('.set-row.good').count()) === 2, 'expected 2 good rows and 1 easy row');
 });
@@ -297,7 +309,7 @@ await step('Chin is bodyweight: logs with no load, shows BW in History, holds at
   assert((await chin.innerText()).includes('leave the load empty for bodyweight'), await chin.innerText());
   for (const n of [1, 2, 3]) await chin.getByLabel(`Set ${n} reps`).fill('8');
   await chin.getByRole('button', { name: /^Set 1 RPE/ }).click();
-  await chin.getByRole('radio', { name: '8', exact: true }).click();
+  await rpeBar().getByRole('radio', { name: '8', exact: true }).click();
   assert((await chin.locator('.set-row.good').count()) === 3, 'chin sets should be green');
   await chin.locator('.card-head').click();
   assert((await chin.locator('.summary').innerText()).includes('BW × 8 @ 8'), await chin.locator('.summary').innerText());
@@ -378,8 +390,10 @@ await step('3x Lifting: supersets, linear main lifts, intro set counts', async (
   await page.waitForURL(/#\/log\//);
   const ss = page.locator('li.card', { hasText: '5A / 5BLateral Raise · Face Pull' });
   await ss.waitFor();
-  const setNos = await ss.locator('.set-no').allInnerTexts();
-  assert(setNos.join('|') === '5A1|5B1|5A2|5B2', `rounds should interleave 5A/5B: ${setNos.join('|')}`);
+  assert((await ss.locator('.ss-block').count()) === 2, 'one block per exercise in the superset');
+  assert((await ss.locator('.ss-block').nth(0).locator('.set-no').allInnerTexts()).map((t) => t.replace(/\s*next\s*/i, '').trim()).join('|') === '1|2', 'each block numbers its own sets');
+  const nextName = () => ss.locator('.set-row.is-next input').first().getAttribute('aria-label');
+  assert((await nextName()) === 'Lateral Raise set 1 load', `5A set 1 should be next first, got ${await nextName()}`);
   assert((await page.locator('li.card', { hasText: 'Back Squat' }).first().locator('.order-tag').innerText()) === '1', 'Back Squat should be exercise 1');
   assert((await ss.getByRole('button', { name: 'Swap 5B' }).count()) === 1, 'swap button should use the order label');
   await ss.getByLabel('Lateral Raise set 1 load').fill('15');
@@ -387,11 +401,20 @@ await step('3x Lifting: supersets, linear main lifts, intro set counts', async (
   assert((await ss.getByLabel('Face Pull set 1 load').inputValue()) === '', 'copy-down must stay inside its own exercise');
   await ss.getByLabel('Face Pull set 1 load').fill('20');
   await waitValue(ss.getByLabel('Face Pull set 2 load'), '20');
-  for (const n of [1, 2]) { await ss.getByLabel(`Lateral Raise set ${n} reps`).fill('15'); await ss.getByLabel(`Face Pull set ${n} reps`).fill('15'); }
+  await page.locator('li.card', { hasText: 'Back Squat' }).first().getByRole('button', { name: /^Set 2 RPE/ }).click();
+  await rpeBar().waitFor();
+  await ss.getByLabel('Lateral Raise set 1 reps').fill('15');
+  assert((await rpeBar().count()) === 0, 'focusing another field should close an open RPE bar');
+  assert((await nextName()) === 'Face Pull set 1 load', `after 5A set 1, 5B set 1 should be next, got ${await nextName()}`);
+  await ss.getByLabel('Face Pull set 1 reps').fill('15');
+  assert((await nextName()) === 'Lateral Raise set 2 load', `then 5A set 2, got ${await nextName()}`);
+  await ss.getByLabel('Lateral Raise set 2 reps').fill('15');
+  await ss.getByLabel('Face Pull set 2 reps').fill('15');
+  assert((await ss.locator('.set-row.is-next').count()) === 0, 'nothing is next once every set is logged');
   await ss.getByRole('button', { name: /^Lateral Raise set 1 RPE/ }).click();
-  await ss.getByRole('radio', { name: '8', exact: true }).click();
+  await rpeBar().getByRole('radio', { name: '8', exact: true }).click();
   await ss.getByRole('button', { name: /^Face Pull set 1 RPE/ }).click();
-  await ss.getByRole('radio', { name: '8', exact: true }).click();
+  await rpeBar().getByRole('radio', { name: '8', exact: true }).click();
   assert((await ss.locator('.set-row.good').count()) === 4, 'all four superset rows should be green');
   assert((await ss.locator('.pill').first().innerText()).includes('4/4'), 'superset pill should count all sets');
 
@@ -401,7 +424,7 @@ await step('3x Lifting: supersets, linear main lifts, intro set counts', async (
   await waitValue(squat.getByLabel('Set 3 load'), '135');
   for (const n of [1, 2, 3]) await squat.getByLabel(`Set ${n} reps`).fill('5');
   await squat.getByRole('button', { name: /^Set 1 RPE/ }).click();
-  await squat.getByRole('radio', { name: '9.5', exact: true }).click();
+  await rpeBar().getByRole('radio', { name: '9.5', exact: true }).click();
   assert((await squat.locator('.set-row.good').count()) === 3, 'linear sets colour on reps alone, so RPE 9.5 is still green');
   await shot('22-log-3x');
   await page.getByRole('button', { name: 'Finish' }).click();

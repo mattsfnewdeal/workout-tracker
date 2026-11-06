@@ -11,8 +11,10 @@ export function fmtLoadBw(load: number, bodyweight?: boolean): string {
   return load > 0 ? `BW +${fmtLoad(load)}` : 'BW';
 }
 
+/** "8", "8.5", "<6" for anything under the chart's 6.5 floor, "—" when none. */
 export function fmtRpe(r: number | null | undefined): string {
-  return r == null ? '—' : String(r);
+  if (r == null) return '—';
+  return r < 6.5 ? '<6' : String(r);
 }
 
 export function fmtRepTarget(t: RepTarget): string {

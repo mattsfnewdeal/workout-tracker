@@ -11,10 +11,14 @@ interface Props {
   min?: number;
   disabled?: boolean;
   id?: string;
+  /** Enter (or the keyboard's Next/Done key) calls this after the value is committed. */
+  onEnter?: () => void;
+  enterKeyHint?: 'next' | 'done';
+  onFocus?: () => void;
 }
 
 /** Text input with the iOS numeric keypad. Keeps partial entries ("22.") while typing. */
-export function NumberField({ value, onChange, mode = 'decimal', placeholder, class: cls, label, min, disabled, id }: Props) {
+export function NumberField({ value, onChange, mode = 'decimal', placeholder, class: cls, label, min, disabled, id, onEnter, enterKeyHint = 'done', onFocus }: Props) {
   const [text, setText] = useState(value == null ? '' : String(value));
   useEffect(() => {
     const parsed = parse(text);
@@ -38,7 +42,7 @@ export function NumberField({ value, onChange, mode = 'decimal', placeholder, cl
       inputMode={mode}
       pattern={mode === 'numeric' ? '[0-9]*' : undefined}
       autocomplete="off"
-      enterKeyHint="done"
+      enterKeyHint={enterKeyHint}
       class={`num ${cls ?? ''}`}
       placeholder={placeholder}
       aria-label={label}
@@ -50,7 +54,12 @@ export function NumberField({ value, onChange, mode = 'decimal', placeholder, cl
         onChange(parse(s));
       }}
       onBlur={() => setText(value == null ? '' : String(value))}
-      onFocus={(e) => e.currentTarget.select()}
+      onFocus={(e) => { e.currentTarget.select(); onFocus?.(); }}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' || !onEnter) return;
+        e.preventDefault();
+        onEnter();
+      }}
     />
   );
 }

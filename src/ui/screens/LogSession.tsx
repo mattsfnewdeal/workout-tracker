@@ -1,6 +1,6 @@
 import { Fragment } from 'preact';
 import { useRef, useState } from 'preact/hooks';
-import { classifySet, reasonText } from '../../engine';
+import { classifySet, logRpeValues, reasonText } from '../../engine';
 import { abandonSession, checkFinish, findOrCreateExercise, finishSession, slotProblem, type SetLogPatch } from '../../db/ops';
 import type { ChangeScope, PlannedSlot, SetLog, SlotChange, SlotSpec, WarmupLog } from '../../model/types';
 import { copyDownTargets } from '../../state/copyDown';
@@ -8,7 +8,6 @@ import { orderLabels, supersetGroups } from '../../state/plan';
 import { useActiveSession } from '../../state/useActiveSession';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { NumberField } from '../components/NumberField';
-import { RpePicker } from '../components/RpePicker';
 import { SlotDialog, type SlotDialogMode } from '../components/SlotDialog';
 import { fmtDate, fmtLoadBw, fmtRepTarget, fmtRpe } from '../format';
 import { navigate } from '../router';
@@ -25,6 +24,8 @@ export function LogSession({ sessionId }: { sessionId: string }) {
   const [confirmAbandon, setConfirmAbandon] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  /** The set whose RPE bar is open (row id), if any. One bar for the whole screen, docked above Finish. */
+  const [openRpe, setOpenRpe] = useState<string | null>(null);
 
   if (state === undefined) return <main class="screen no-tabs" />;
   if (state === null) {
@@ -47,6 +48,16 @@ export function LogSession({ sessionId }: { sessionId: string }) {
   }
 
   const doneCount = session.plan.filter((s) => slotDone(s, logs)).length;
+  const order = displayOrder(session.plan, logs);
+  const openRow = openRpe ? order.find((r) => r.log.id === openRpe) ?? null : null;
+
+  /** After an RPE is picked, move on to the next set: its load if still empty, else its reps. */
+  function focusNext(afterId: string) {
+    const i = order.findIndex((r) => r.log.id === afterId);
+    const next = i >= 0 ? order[i + 1] : undefined;
+    if (!next) return;
+    document.getElementById(`${next.log.load == null ? 'load' : 'reps'}-${next.log.id}`)?.focus();
+  }
 
   async function doFinish() {
     setBusy(true);
@@ -101,6 +112,8 @@ export function LogSession({ sessionId }: { sessionId: string }) {
           const key = group.map((slot) => rowsOf(slot)[0]?.id ?? slot.slotId).join('+');
           const props = {
             update,
+            openRpe,
+            setOpenRpe,
             onSwap: (slot: PlannedSlot) => setDialog({ kind: 'swap', slot }),
             toggleWarmupSet: (slot: PlannedSlot, i: number, done: boolean) => toggleWarmupSet(slot.slotId, i, done),
           };
@@ -118,6 +131,19 @@ export function LogSession({ sessionId }: { sessionId: string }) {
         </ul>
       )}
       <div class="sticky-bottom">
+        {openRow && (
+          <RpeBar
+            name={openRow.name}
+            value={openRow.log.rpe}
+            targetRpe={goalOf(openRow.slot)}
+            onPick={(v) => {
+              update(openRow.log.id, { rpe: v });
+              setOpenRpe(null);
+              if (v != null) focusNext(openRow.log.id);
+            }}
+            onClose={() => setOpenRpe(null)}
+          />
+        )}
         <button type="button" class="btn btn-primary btn-big" disabled={busy} onClick={tryFinish}>Finish</button>
       </div>
 
@@ -203,8 +229,57 @@ function changeText(c: SlotChange): string {
 
 interface CardCallbacks {
   update: (id: string, patch: SetLogPatch) => void;
+  openRpe: string | null;
+  setOpenRpe: (id: string | null) => void;
   onSwap: (slot: PlannedSlot) => void;
   toggleWarmupSet: (slot: PlannedSlot, index: number, done: boolean) => void;
+}
+
+interface OrderedRow { slot: PlannedSlot; log: SetLog; name: string }
+
+/** Every set row in the order it appears on screen: card by card, and round by round inside a superset. */
+function displayOrder(plan: PlannedSlot[], logs: SetLog[]): OrderedRow[] {
+  const rowsOf = (slot: PlannedSlot) => logs.filter((l) => l.slotId === slot.slotId).sort((a, b) => a.setNumber - b.setNumber);
+  const out: OrderedRow[] = [];
+  for (const group of supersetGroups(plan)) {
+    if (group.length === 1) {
+      for (const log of rowsOf(group[0])) out.push({ slot: group[0], log, name: `Set ${log.setNumber}` });
+      continue;
+    }
+    const rounds = Math.max(0, ...group.map((s) => s.sets));
+    for (let r = 1; r <= rounds; r++) {
+      for (const slot of group) {
+        const log = rowsOf(slot).find((l) => l.setNumber === r);
+        if (log) out.push({ slot, log, name: `${slot.exerciseName} set ${r}` });
+      }
+    }
+  }
+  return out;
+}
+
+const RPE_CHOICES = logRpeValues();
+
+/** The RPE control: one bar docked above Finish, the width of the screen, so nothing in the card moves. Tap the selected value again to clear it. */
+function RpeBar({ name, value, targetRpe, onPick, onClose }: { name: string; value: number | undefined; targetRpe: number | null; onPick: (v: number | undefined) => void; onClose: () => void }) {
+  return (
+    <div class="rpe-bar">
+      <div class="rpe-bar-head">
+        <span class="muted small">{name} · RPE</span>
+        <button type="button" class="btn btn-small btn-ghost" aria-label="Close RPE" onClick={onClose}>Done</button>
+      </div>
+      <div class="rpe rpe-compact rpe-bar-values" role="radiogroup" aria-label={`${name} RPE`}>
+        {RPE_CHOICES.map((v) => {
+          const selected = value === v;
+          const outside = targetRpe != null && Math.abs(v - targetRpe) > 1;
+          return (
+            <button type="button" key={v} role="radio" aria-checked={selected} class={`rpe-btn ${selected ? 'selected' : ''} ${outside ? 'outside' : ''}`} onClick={() => onPick(selected ? undefined : v)}>
+              {fmtRpe(v)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /** Sessions from before v1.6 have no targetRpe on the slot but always had a goal: fall back to the suggestion's. */
@@ -262,7 +337,7 @@ function Summary({ slot, rows }: { slot: PlannedSlot; rows: SetLog[] }) {
       {logged.map((l, i) => (
         <Fragment key={l.id}>
           {i > 0 && ' · '}
-          <span class={`sum ${statusOf(slot, l)}`}>{l.load != null ? fmtLoadBw(l.load, slot.bodyweight) : slot.bodyweight ? 'BW' : '?'} × {l.reps}{l.rpe != null ? ` @ ${l.rpe}` : ''}</span>
+          <span class={`sum ${statusOf(slot, l)}`}>{l.load != null ? fmtLoadBw(l.load, slot.bodyweight) : slot.bodyweight ? 'BW' : '?'} × {l.reps}{l.rpe != null ? ` @ ${fmtRpe(l.rpe)}` : ''}</span>
         </Fragment>
       ))}
     </>
@@ -289,58 +364,69 @@ function useCopyDown(slots: PlannedSlot[], rowsOf: (slot: PlannedSlot) => SetLog
 interface RowProps {
   slot: PlannedSlot;
   log: SetLog;
-  /** Superset tag shown before the set number, e.g. "A1". */
-  tag?: string;
+  /** Inside a superset: accessible names carry the exercise name ("Lateral Raise set 1 load"). */
+  named?: boolean;
+  /** The next set to do in a superset's alternating order. */
+  next?: boolean;
   open: boolean;
-  onToggleRpe: () => void;
+  setOpenRpe: (id: string | null) => void;
   onLoad: (v: number | undefined) => void;
   update: CardCallbacks['update'];
 }
 
-function SetRow({ slot, log, tag, open, onToggleRpe, onLoad, update }: RowProps) {
+/** Load → Enter → reps → Enter → the RPE bar; picking an RPE moves to the next set. Focusing a field closes the bar. */
+function SetRow({ slot, log, named, next, open, setOpenRpe, onLoad, update }: RowProps) {
   const st = statusOf(slot, log);
-  const name = tag ? `${slot.exerciseName} set ${log.setNumber}` : `Set ${log.setNumber}`;
+  const name = named ? `${slot.exerciseName} set ${log.setNumber}` : `Set ${log.setNumber}`;
+  const close = () => setOpenRpe(null); // whichever row's bar is open
   return (
-    <div class={`set-row ${tag ? 'ss' : ''} ${st}`}>
-      <span class="set-no" aria-label={`${name}${st !== 'pending' ? `, ${st}` : ''}`}>{tag && <span class="order-tag">{tag}</span>}{log.setNumber}</span>
-      <NumberField value={log.load} onChange={onLoad} mode="decimal" label={`${name} load`} min={0} placeholder={slot.bodyweight ? 'BW' : 'lb'} />
-      <NumberField value={log.reps} onChange={(v) => update(log.id, { reps: v })} mode="numeric" label={`${name} reps`} min={0} placeholder="reps" />
+    <div class={`set-row ${st} ${next ? 'is-next' : ''}`}>
+      <span class="set-no" aria-label={`${name}${st !== 'pending' ? `, ${st}` : ''}${next ? ', next' : ''}`}>{log.setNumber}{next && <span class="next-tag">next</span>}</span>
+      <NumberField
+        id={`load-${log.id}`}
+        value={log.load}
+        onChange={onLoad}
+        mode="decimal"
+        label={`${name} load`}
+        min={0}
+        placeholder={slot.bodyweight ? 'BW' : 'lb'}
+        enterKeyHint="next"
+        onFocus={close}
+        onEnter={() => document.getElementById(`reps-${log.id}`)?.focus()}
+      />
+      <NumberField
+        id={`reps-${log.id}`}
+        value={log.reps}
+        onChange={(v) => update(log.id, { reps: v })}
+        mode="numeric"
+        label={`${name} reps`}
+        min={0}
+        placeholder="reps"
+        enterKeyHint="next"
+        onFocus={close}
+        onEnter={() => { (document.activeElement as HTMLElement | null)?.blur(); setOpenRpe(log.id); }}
+      />
       <button
         type="button"
         class={`rpe-chip ${log.rpe == null ? 'is-empty' : ''} ${log.rpe != null ? st : ''} ${open ? 'open' : ''}`}
         aria-label={`${name} RPE${st !== 'pending' ? `, ${st}` : ''}`}
         aria-expanded={open}
-        onClick={onToggleRpe}
+        onClick={() => setOpenRpe(open ? null : log.id)}
       >
-        {log.rpe == null ? 'RPE' : log.rpe}
+        {log.rpe == null ? 'RPE' : fmtRpe(log.rpe)}
       </button>
-      {open && (
-        <div class="set-rpe">
-          <RpePicker
-            compact
-            targetRpe={goalOf(slot) ?? undefined}
-            value={log.rpe}
-            onChange={(v) => {
-              update(log.id, { rpe: v });
-              onToggleRpe();
-            }}
-            label={`${name} RPE picker`}
-          />
-        </div>
-      )}
     </div>
   );
 }
 
-function SetHead({ ss, bodyweight }: { ss?: boolean; bodyweight?: boolean }) {
-  return <div class={`set-head ${ss ? 'ss' : ''}`}><span>Set</span><span>{bodyweight ? 'Added (lb)' : 'Load (lb)'}</span><span>Reps</span><span>RPE</span></div>;
+function SetHead({ bodyweight }: { bodyweight?: boolean }) {
+  return <div class="set-head"><span>Set</span><span>{bodyweight ? 'Added (lb)' : 'Load (lb)'}</span><span>Reps</span><span>RPE</span></div>;
 }
 
-function ExerciseCard({ slot, label, logs, update, onSwap, toggleWarmupSet }: CardCallbacks & { slot: PlannedSlot; label: string; logs: SetLog[] }) {
+function ExerciseCard({ slot, label, logs, update, onSwap, toggleWarmupSet, openRpe, setOpenRpe }: CardCallbacks & { slot: PlannedSlot; label: string; logs: SetLog[] }) {
   const rows = [...logs].sort((a, b) => a.setNumber - b.setNumber);
   const done = rowsDone(rows);
   const [collapsed, setCollapsed] = useState(false);
-  const [openRpe, setOpenRpe] = useState<string | null>(null);
   const onLoad = useCopyDown([slot], () => rows, update);
 
   return (
@@ -354,7 +440,7 @@ function ExerciseCard({ slot, label, logs, update, onSwap, toggleWarmupSet }: Ca
           <WarmupChips slot={slot} toggle={(i, d) => toggleWarmupSet(slot, i, d)} />
           <SetHead bodyweight={slot.bodyweight} />
           {rows.map((log) => (
-            <SetRow key={log.id} slot={slot} log={log} open={openRpe === log.id} onToggleRpe={() => setOpenRpe(openRpe === log.id ? null : log.id)} onLoad={(v) => onLoad(slot, log, v)} update={update} />
+            <SetRow key={log.id} slot={slot} log={log} open={openRpe === log.id} setOpenRpe={setOpenRpe} onLoad={(v) => onLoad(slot, log, v)} update={update} />
           ))}
           <div class="card-foot">
             <button type="button" class="btn btn-small btn-ghost" onClick={() => onSwap(slot)}>Swap exercise</button>
@@ -365,18 +451,26 @@ function ExerciseCard({ slot, label, logs, update, onSwap, toggleWarmupSet }: Ca
   );
 }
 
-/** 5A / 5B (…): one card, sets interleaved by round in the order they are done. */
-function SupersetCard({ slots, labels, logsOf, update, onSwap, toggleWarmupSet }: CardCallbacks & { slots: PlannedSlot[]; labels: string[]; logsOf: (slot: PlannedSlot) => SetLog[] }) {
+/**
+ * 5A / 5B (…): one card with a block per exercise (its own target, hints, warm-ups and set rows), plus a
+ * "next" marker on the set that comes next in the alternating order (5A set 1, 5B set 1, 5A set 2 …).
+ */
+function SupersetCard({ slots, labels, logsOf, update, onSwap, toggleWarmupSet, openRpe, setOpenRpe }: CardCallbacks & { slots: PlannedSlot[]; labels: string[]; logsOf: (slot: PlannedSlot) => SetLog[] }) {
   const rowsOf = (slot: PlannedSlot) => [...logsOf(slot)].sort((a, b) => a.setNumber - b.setNumber);
   const tag = (i: number) => labels[i];
   const allRows = slots.flatMap(rowsOf);
   const doneCount = allRows.filter((l) => l.reps != null).length;
   const done = allRows.length > 0 && doneCount === allRows.length;
   const [collapsed, setCollapsed] = useState(false);
-  const [openRpe, setOpenRpe] = useState<string | null>(null);
   const onLoad = useCopyDown(slots, rowsOf, update);
   const rounds = Math.max(0, ...slots.map((s) => s.sets));
-  const anyBodyweight = slots.some((s) => s.bodyweight);
+  let nextId: string | null = null;
+  for (let r = 1; r <= rounds && !nextId; r++) {
+    for (const s of slots) {
+      const log = rowsOf(s).find((l) => l.setNumber === r);
+      if (log && log.reps == null) { nextId = log.id; break; }
+    }
+  }
 
   return (
     <li class={`card ${done ? 'is-done' : ''}`}>
@@ -394,24 +488,25 @@ function SupersetCard({ slots, labels, logsOf, update, onSwap, toggleWarmupSet }
         ))
       ) : (
         <>
-          {slots.map((s, i) => (
-            <div key={s.slotId} class="ss-block">
-              <div class="ss-name">
-                <span><span class="order-tag">{tag(i)}</span>{s.exerciseName}</span>
-                <span class={`pill ${rowsDone(rowsOf(s)) ? 'pill-ok' : ''}`}>{pillText(s, rowsDone(rowsOf(s)))}</span>
+          <p class="hint small muted">Alternate: {slots.map((_, i) => tag(i)).join(' → ')}, rest, repeat. The highlighted set is next.</p>
+          {slots.map((s, i) => {
+            const rows = rowsOf(s);
+            const isNextHere = rows.some((l) => l.id === nextId);
+            return (
+              <div key={s.slotId} class={`ss-block ${isNextHere ? 'is-next' : ''}`}>
+                <div class="ss-name">
+                  <span><span class="order-tag">{tag(i)}</span>{s.exerciseName}</span>
+                  <span class={`pill ${rowsDone(rows) ? 'pill-ok' : ''}`}>{pillText(s, rowsDone(rows))}</span>
+                </div>
+                <SlotHints slot={s} />
+                <WarmupChips slot={s} toggle={(j, d) => toggleWarmupSet(s, j, d)} />
+                <SetHead bodyweight={s.bodyweight} />
+                {rows.map((log) => (
+                  <SetRow key={log.id} slot={s} log={log} named next={log.id === nextId} open={openRpe === log.id} setOpenRpe={setOpenRpe} onLoad={(v) => onLoad(s, log, v)} update={update} />
+                ))}
               </div>
-              <SlotHints slot={s} />
-              <WarmupChips slot={s} toggle={(j, d) => toggleWarmupSet(s, j, d)} />
-            </div>
-          ))}
-          <SetHead ss bodyweight={anyBodyweight} />
-          {Array.from({ length: rounds }, (_, r) => r + 1).map((round) =>
-            slots.map((s, i) => {
-              const log = rowsOf(s).find((l) => l.setNumber === round);
-              if (!log) return null;
-              return <SetRow key={log.id} slot={s} log={log} tag={tag(i)} open={openRpe === log.id} onToggleRpe={() => setOpenRpe(openRpe === log.id ? null : log.id)} onLoad={(v) => onLoad(s, log, v)} update={update} />;
-            }),
-          )}
+            );
+          })}
           <div class="card-foot">
             {slots.map((s, i) => (
               <button type="button" key={s.slotId} class="btn btn-small btn-ghost" onClick={() => onSwap(s)}>Swap {tag(i)}</button>

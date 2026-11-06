@@ -8,6 +8,8 @@ export const RPE_MIN = 6.5;
 export const RPE_MAX = 10;
 export const RPE_STEP = 0.5;
 export const DEFAULT_TARGET_RPE = 8;
+/** Logged when a set felt easier than the chart's floor ("<6"): below RPE_MIN, so never rated for an e1RM; shows as "<6". */
+export const RPE_BELOW_6 = 5;
 /** Visual band for the RPE picker when no slot goal is given; set colouring on the log screen is goal-relative (see classify.ts). */
 export const WORKING_RPE_MIN = 7;
 export const WORKING_RPE_MAX = 9;
@@ -39,6 +41,11 @@ export function isValidRpe(rpe: number): boolean {
 }
 
 /** All selectable RPE values, low to high. */
+/** The values a lifter can log: "<6" then 6.5 … 10. */
+export function logRpeValues(): number[] {
+  return [RPE_BELOW_6, ...rpeValues()];
+}
+
 export function rpeValues(): number[] {
   const out: number[] = [];
   for (let r = RPE_MIN; r <= RPE_MAX + 1e-9; r += RPE_STEP) out.push(Number(r.toFixed(1)));
