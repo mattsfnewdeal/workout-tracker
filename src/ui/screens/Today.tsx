@@ -143,7 +143,7 @@ function SlotBody({ slot, tag }: { slot: PlannedSlot; tag?: string }) {
         <span class="muted">{slot.sets} sets{slot.fullSets != null ? ` · intro (usually ${slot.fullSets})` : ''}</span>
       </div>
       <div class="big-number">
-        {fmtSuggestion(s, slot.bodyweight, slot.rule !== 'linear' || slot.targetRpe != null)}
+        {fmtSuggestion(s, slot.bodyweight, !slot.rule || slot.rule === 'rpe' || slot.targetRpe != null)}
         {beat != null && <span class="muted"> · beat {beat}</span>}
       </div>
       <div class="row gap wrap">
@@ -151,6 +151,7 @@ function SlotBody({ slot, tag }: { slot: PlannedSlot; tag?: string }) {
         {s.confidence === 'low' && <span class="badge badge-warn">low confidence</span>}
         {s.bigJump && <span class="badge badge-warn">big jump</span>}
       </div>
+      {slot.note && <div class="small note">{slot.note}</div>}
       {slot.warmupSets && slot.warmupSets.length > 0 && (
         <div class="small muted">Warm-up sets: {slot.warmupSets.map((w) => `${fmtLoadBw(w.load, slot.bodyweight)} × ${w.reps}`).join(', ')}</div>
       )}

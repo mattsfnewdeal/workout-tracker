@@ -4,10 +4,11 @@ export type Progression = 'single' | 'double';
 
 /**
  * How the next load is chosen. 'rpe' (default): from set 1's e1RM at the RPE goal (the v1 rules).
- * 'linear': add one increment when every set hits its target (fixed reps, or the top of the range);
- * hold on a miss; after two missed sessions in a row drop 10%. RPE is recorded but doesn't drive the load.
+ * 'linear': add one increment when every set hits its target (fixed reps, or the top of the range at or
+ * under the RPE goal); hold on a miss; fixed-rep slots drop 10% after two missed sessions in a row.
+ * 'manual': no suggestion beyond last time's load; progress by feel, guided by the slot's note.
  */
-export type ProgressionRule = 'rpe' | 'linear';
+export type ProgressionRule = 'rpe' | 'linear' | 'manual';
 
 export interface Exercise {
   id: string;
@@ -37,6 +38,8 @@ export interface Slot {
   introSets?: number;
   /** Superset with the slot above it (A1/A2). Ignored on the first slot of a day. */
   supersetWithPrev?: boolean;
+  /** Coaching note shown on the card ("per leg", how to progress, cues). */
+  note?: string;
 }
 
 /** A checkbox-only warm-up item: no load, reps or RPE; the note carries anything like "3 × 4 with 4–6 kg". */
@@ -103,8 +106,9 @@ export interface PlannedSlot {
   bodyweight?: boolean;
   /** Absent = 'rpe'. */
   rule?: ProgressionRule;
-  /** The slot's RPE goal for display and colouring; absent on a linear slot without one. */
+  /** The slot's RPE goal for display and colouring; absent on a linear / manual slot without one. */
   targetRpe?: number;
+  note?: string;
   /** When `sets` is the intro count, the full count it will return to. */
   fullSets?: number;
   /** Second or later exercise of a superset: logged in rounds with the slot before it. */

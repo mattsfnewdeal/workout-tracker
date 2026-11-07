@@ -4,7 +4,8 @@ import { buildPlan } from '../state/plan';
 import { WorkoutDB } from './db';
 import { abandonSession, checkFinish, findOrCreateExercise, finishSession, setWarmupDone, startSession, updateSetLog } from './ops';
 import { getActiveProgram, getArchivedPrograms, getInProgressSession, getSessionLogs } from './queries';
-import { PRELOADED, loadTemplate } from './templates';
+import { loadTemplate } from './templates';
+import { PRELOADED } from './templateFixtures';
 
 let d: WorkoutDB;
 beforeEach(() => {

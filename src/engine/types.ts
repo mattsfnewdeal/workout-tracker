@@ -3,8 +3,10 @@ interface BaseParams {
   increment: number;
   /** Load is added weight (0 = bodyweight). Progression steps by increments instead of e1RM. */
   bodyweight?: boolean;
-  /** 'linear': increments on reps alone, ignoring e1RM and RPE. Absent = 'rpe'. */
-  rule?: 'rpe' | 'linear';
+  /** 'linear': increments on reps (and, for a range, RPE at or under rpeCap). 'manual': hold last time's load. Absent = 'rpe'. */
+  rule?: 'rpe' | 'linear' | 'manual';
+  /** Linear rule, rep ranges: progress only when every logged RPE is at or under this (the slot's goal). Absent = no RPE condition. */
+  rpeCap?: number;
 }
 
 export type SlotParams =
@@ -39,7 +41,9 @@ export type SuggestionReason =
   | 'linear-progress'
   | 'linear-hold-missed'
   | 'linear-hold-range'
-  | 'linear-deload';
+  | 'linear-hold-rpe'
+  | 'linear-deload'
+  | 'manual-hold';
 
 export interface Suggestion {
   /** null on the first session: there is no history, the lifter picks the load. */

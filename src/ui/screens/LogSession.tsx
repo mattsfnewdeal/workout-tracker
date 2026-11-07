@@ -252,7 +252,7 @@ function displayOrder(plan: PlannedSlot[], logs: SetLog[]): OrderedRow[] {
 }
 
 /** Sessions from before v1.6 have no targetRpe on the slot but always had a goal: fall back to the suggestion's. */
-const goalOf = (slot: PlannedSlot): number | null => (slot.rule === 'linear' ? slot.targetRpe ?? null : slot.targetRpe ?? slot.suggestion.targetRpe);
+const goalOf = (slot: PlannedSlot): number | null => (slot.rule && slot.rule !== 'rpe' ? slot.targetRpe ?? null : slot.targetRpe ?? slot.suggestion.targetRpe);
 const pillText = (slot: PlannedSlot, done: boolean) => {
   const goal = goalOf(slot);
   return `${slot.sets} × ${fmtRepTarget(slot.suggestion.repTarget)}${goal != null ? ` @ ${goal}` : ''}${done ? ' ✓' : ''}`;
@@ -277,6 +277,7 @@ function SlotHints({ slot }: { slot: PlannedSlot }) {
       {s.basis && (
         <p class="hint muted">Last set 1: {fmtLoadBw(s.basis.load, slot.bodyweight)} × {s.basis.reps} @ {fmtRpe(s.basis.rpe)}</p>
       )}
+      {slot.note && <p class="hint small note">{slot.note}</p>}
       {slot.fullSets != null && <p class="hint small muted">Intro weeks — {slot.sets} of the usual {slot.fullSets} sets</p>}
       {slot.change && <p class="hint small changed">{changeText(slot.change)}</p>}
     </>

@@ -59,3 +59,26 @@ describe('linear progression', () => {
     expect(suggest({ ...squat, bodyweight: true }, sets(0, [4, 4, 4]), sets(0, [4, 4, 4]))).toMatchObject({ load: 0, reason: 'linear-deload' });
   });
 });
+
+describe('rep range at RPE 8 or easier', () => {
+  const rowCap: SlotParams = { ...row, rpeCap: 8 };
+  it('progresses only when the top of the range came at or under the cap', () => {
+    expect(suggest(rowCap, sets(100, [12, 12, 12, 12], 8))).toMatchObject({ load: 105, reason: 'linear-progress' });
+    expect(suggest(rowCap, sets(100, [12, 12, 12, 12], 8.5))).toMatchObject({ load: 100, reason: 'linear-hold-rpe' });
+    expect(suggest(rowCap, sets(100, [12, 12, 12, 12], null))).toMatchObject({ load: 105, reason: 'linear-progress' }); // no RPE logged: reps decide
+    expect(suggest({ ...rowCap, rpeCap: 7 }, sets(100, [12, 12, 12, 12], 7.5))).toMatchObject({ load: 100, reason: 'linear-hold-rpe' });
+    expect(suggest(row, sets(100, [12, 12, 12, 12], 10))).toMatchObject({ load: 105, reason: 'linear-progress' }); // no cap
+    expect(suggest({ ...squat, rpeCap: 8 }, sets(225, [5, 5, 5], 9.5))).toMatchObject({ load: 230, reason: 'linear-progress' }); // fixed reps ignore RPE
+  });
+});
+
+describe('manual rule', () => {
+  it('repeats last time\'s load and reports the e1RM when it can', () => {
+    const wheel: SlotParams = { progression: 'double', repMin: 6, repMax: 10, targetRpe: 8, increment: 5, rule: 'manual', bodyweight: true };
+    expect(suggest(wheel, null)).toMatchObject({ load: null, reason: 'first-session' });
+    expect(suggest(wheel, sets(0, [10, 10, 10], 8))).toMatchObject({ load: 0, reason: 'manual-hold', confidence: 'normal', bigJump: false, repTarget: { beat: null } });
+    const carry: SlotParams = { progression: 'double', repMin: 30, repMax: 40, targetRpe: 8, increment: 5, rule: 'manual' };
+    expect(suggest(carry, sets(75, [40, 35], 7))).toMatchObject({ load: 75, reason: 'manual-hold', e1rm: null }); // 40 reps is off the chart
+    expect(suggest({ ...carry, progression: 'single', targetReps: 5 }, sets(225, [5, 5], 7)).e1rm).toBeCloseTo(286.26, 1);
+  });
+});

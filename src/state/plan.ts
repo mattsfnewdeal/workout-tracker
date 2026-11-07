@@ -8,7 +8,8 @@ export function toSlotParams(slot: Slot, exercise: Exercise): SlotParams {
     targetRpe: slot.targetRpe ?? DEFAULT_TARGET_RPE,
     increment: exercise.loadIncrement,
     ...(exercise.bodyweight ? { bodyweight: true } : {}),
-    ...(slot.rule === 'linear' ? { rule: 'linear' as const } : {}),
+    ...(slot.rule === 'linear' ? { rule: 'linear' as const, ...(slot.targetRpe != null ? { rpeCap: slot.targetRpe } : {}) } : {}),
+    ...(slot.rule === 'manual' ? { rule: 'manual' as const } : {}),
   };
   return slot.progression === 'single'
     ? { progression: 'single', targetReps: slot.targetReps ?? 5, ...common }
@@ -54,8 +55,9 @@ export async function planSlot(slot: Slot, exercise: Exercise, d: WorkoutDB = db
     ...(intro ? { fullSets: slot.sets } : {}),
     increment: exercise.loadIncrement,
     ...(exercise.bodyweight ? { bodyweight: true } : {}),
-    ...(slot.rule === 'linear' ? { rule: 'linear' as const } : {}),
+    ...(slot.rule === 'linear' || slot.rule === 'manual' ? { rule: slot.rule } : {}),
     ...(slot.targetRpe != null ? { targetRpe: slot.targetRpe } : {}),
+    ...(slot.note ? { note: slot.note } : {}),
     ...(opts.supersetWithPrev ? { supersetWithPrev: true } : {}),
     ...(last?.session.finishedAt != null ? { lastSessionAt: last.session.finishedAt } : {}),
     suggestion,

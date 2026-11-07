@@ -89,7 +89,11 @@ async function writeToProgram(session: Session, slot: Slot, d: WorkoutDB): Promi
 /** The spec a swap dialog starts from: the slot as it is now. */
 export function specOf(slot: PlannedSlot): SlotSpec {
   const t = slot.suggestion.repTarget;
-  const extra = { ...(slot.rule === 'linear' ? { rule: 'linear' as const } : {}), ...(slot.targetRpe != null ? { targetRpe: slot.targetRpe } : {}) };
+  const extra = {
+    ...(slot.rule === 'linear' || slot.rule === 'manual' ? { rule: slot.rule } : {}),
+    ...(slot.targetRpe != null ? { targetRpe: slot.targetRpe } : {}),
+    ...(slot.note ? { note: slot.note } : {}),
+  };
   const sets = slot.fullSets ?? slot.sets; // the dialog shows the full count; the intro count is carried by the swap
   return t.kind === 'fixed'
     ? { sets, progression: 'single', targetReps: t.reps, ...extra }

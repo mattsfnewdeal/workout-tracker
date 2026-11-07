@@ -163,6 +163,7 @@ select {
 .order-tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--accent); background: rgba(79, 140, 255, 0.16); border-radius: 6px; padding: 1px 5px; margin-right: 6px; vertical-align: 2px; }
 .card-foot { display: flex; justify-content: flex-end; margin: 14px -10px -10px 0; }
 .hint.changed { color: var(--accent); }
+.note { color: #c9b27a; }
 .sum { white-space: nowrap; }
 .sum.good { color: var(--ok); }
 .sum.easy { color: #8db4ff; }

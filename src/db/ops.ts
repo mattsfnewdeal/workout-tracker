@@ -93,7 +93,7 @@ export function emptyProgram(name = 'My program'): Program {
 export function slotProblem(slot: SlotSpec & { introSets?: number }): string | null {
   if (!Number.isInteger(slot.sets) || slot.sets < 1) return 'sets must be at least 1';
   if (slot.introSets != null && (!Number.isInteger(slot.introSets) || slot.introSets < 1)) return 'intro sets must be at least 1';
-  if (slot.rule !== 'linear' && slot.targetRpe == null) return 'needs an RPE goal (or the linear rule)';
+  if ((slot.rule == null || slot.rule === 'rpe') && slot.targetRpe == null) return 'needs an RPE goal (or the linear / manual rule)';
   if (slot.progression === 'single') {
     if (!Number.isInteger(slot.targetReps) || (slot.targetReps ?? 0) < 1) return 'target reps must be at least 1';
   } else {
@@ -156,6 +156,16 @@ export function setRowsFor(sessionId: string, slot: PlannedSlot): SetLog[] {
     logs.push(row);
   }
   return logs;
+}
+
+/** Delete an archived program. Its sessions and set rows stay: History is per exercise. The active program can't be deleted. */
+export async function deleteProgram(id: string, d: WorkoutDB = db): Promise<void> {
+  await d.transaction('rw', d.programs, async () => {
+    const p = await d.programs.get(id);
+    if (!p) return;
+    if (p.status === 'active') throw new Error('Create a new program first; the active one can’t be deleted');
+    await d.programs.delete(id);
+  });
 }
 
 /** Create the session and pre-create every set row, prefilled with the suggested load when there is one. */

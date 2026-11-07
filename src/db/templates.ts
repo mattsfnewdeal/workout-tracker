@@ -13,12 +13,14 @@ export interface TemplateSlot {
   increment?: number;
   /** Load is added weight; 0 / empty means bodyweight. */
   bodyweight?: boolean;
-  /** 'linear': add the increment when every set hits its target. Default: from RPE / e1RM. */
-  rule?: 'linear';
+  /** 'linear': add the increment when every set hits its target; 'manual': hold, progress by feel. Default: from RPE / e1RM. */
+  rule?: 'linear' | 'manual';
   /** Sets during the program's intro weeks. */
   introSets?: number;
   /** Superset with the slot above (A2 of an A1/A2 pair). */
   superset?: boolean;
+  /** Coaching note shown on the card. */
+  note?: string;
 }
 export interface TemplateDay {
   name: string;
@@ -33,102 +35,47 @@ export interface ProgramTemplate {
   days: TemplateDay[];
 }
 
-const COMMON_WARMUP = [{ name: '90/90 hips' }, { name: 'Open books' }, { name: 'Jump', note: '3 × 5' }];
-
-/** Matt's Tuesday / Thursday program (2026-11-03). Loads are picked in each exercise's first session. */
-export const PRELOADED: ProgramTemplate = {
-  name: 'Tuesday / Thursday',
-  blurb: 'Two days, BBM-style: rep ranges at an RPE goal, loads from e1RM.',
-  days: [
-    {
-      name: 'Tuesday',
-      warmups: [...COMMON_WARMUP, { name: 'Underhand Scoop', note: '3 × 4 with 4–6 kg' }],
-      slots: [
-        { name: 'Squat', sets: 3, reps: [4, 6] },
-        { name: 'DB Bench', sets: 3, reps: [6, 8] },
-        { name: 'DB SLDL', sets: 3, reps: 10 },
-        { name: 'Chin', sets: 3, reps: [6, 10], bodyweight: true },
-        { name: 'Pallof Press', sets: 3, reps: 10 },
-        { name: 'DB Incline Curl', sets: 2, reps: [12, 15] },
-      ],
-    },
-    {
-      name: 'Thursday',
-      warmups: [...COMMON_WARMUP, { name: 'Step-through Put', note: '3 × 4 with 4–6 kg' }],
-      slots: [
-        { name: 'Trap', sets: 3, reps: [4, 6] },
-        { name: 'DB Press', sets: 3, reps: [8, 10] },
-        { name: 'BSS', sets: 3, reps: 8 },
-        { name: 'DB Row', sets: 3, reps: 10 },
-        { name: 'Cable chop', sets: 3, reps: 10 },
-        { name: 'DB OTE', sets: 2, reps: [12, 15] },
-      ],
-    },
-  ],
-};
-
 const LIN = { rule: 'linear' as const };
 const MAIN = { ...LIN, targetRpe: null };
+const MANUAL = { rule: 'manual' as const, targetRpe: null };
 
 /**
- * Matt's 3×/week full-body program (2026-11-06). Main lifts run linear progression (add the increment
- * when every set is completed; hold on a miss; drop 10% after two misses); accessories are rep ranges
- * at ~2 reps in reserve, adding the increment once every set reaches the top of the range. Weeks 1–2
- * use the reduced set counts (`introSets`). A1/A2 pairs are supersets. "Hanging Leg Raise or Ab Wheel"
- * is Ab Wheel (Matt's choice). "(1-2)" intro counts are taken as 1. Day 1's and Day 3's lateral raises are
- * the same exercise.
+ * Matt's Day A / Day B program (2026-11-06; Seated DB Press and Incline Bench dropped the same evening). Box jumps are the day's checkbox warm-up. Main lifts run linear
+ * progression with the program's weekly jumps; accessories are rep ranges that add the jump once every set hits
+ * the top of the range at RPE 8 or easier (RDL at RPE 7). Ab wheel and the suitcase carry progress by feel
+ * ('manual'), with the program's instructions as the slot note. The carry logs metres per side in the reps field.
  */
-export const THREE_DAY: ProgramTemplate = {
-  name: '3x Lifting',
-  blurb: 'Three full-body days: linear main lifts, double-progression accessories, supersets, two intro weeks.',
-  introWeeks: 2,
+export const AB: ProgramTemplate = {
+  name: 'Day A / Day B',
+  blurb: 'Two days: linear main lifts, double-progression accessories at RPE 8, jumps, ab wheel and carries.',
   days: [
     {
-      name: 'Day 1',
-      warmups: [],
+      name: 'Day A (Tue)',
+      warmups: [{ name: 'Seated box jump', note: '3 × 3' }],
       slots: [
-        { name: 'Back Squat', sets: 3, reps: 5, ...MAIN, increment: 5 },
-        { name: 'Bench Press', sets: 3, reps: 5, ...MAIN, increment: 5 },
-        { name: 'Chest-Supported Row', sets: 4, reps: [8, 12], ...LIN, introSets: 2 },
-        { name: 'Romanian Deadlift', sets: 3, reps: [8, 12], ...LIN, introSets: 2 },
-        { name: 'Lateral Raise', sets: 3, reps: [12, 20], ...LIN, introSets: 2 },
-        { name: 'Face Pull', sets: 2, reps: [12, 20], ...LIN, introSets: 2, superset: true },
-        { name: 'Calf Raise', sets: 3, reps: [10, 15], ...LIN, introSets: 2 },
+        { name: 'Trap Bar Deadlift', sets: 3, reps: 5, ...MAIN, increment: 10, note: 'Linear: +10 lb a week when every rep is there. Start about 10% under what you could do today.' },
+        { name: 'Bench Press', sets: 4, reps: 5, ...MAIN, increment: 5, note: 'Linear: +5 lb a week when every rep is there. Start about 10% under.' },
+        { name: 'FFE Split Squat', sets: 3, reps: [8, 10], ...LIN, note: 'Per leg, front foot elevated. Top of the range at RPE 8 or easier → +5 lb, back to 8.' },
+        { name: 'Weighted Chin-up', sets: 3, reps: [3, 6], ...LIN, bodyweight: true, note: 'Load is added weight; leave empty for bodyweight. Top of the range at RPE 8 or easier → +5 lb, back to 3.' },
+        { name: 'Pallof Press', sets: 2, reps: 10, ...MAIN, note: 'Per side.' },
       ],
     },
     {
-      name: 'Day 2',
-      warmups: [],
+      name: 'Day B (Thu/Fri)',
+      warmups: [{ name: 'Weighted box jump', note: '3 × 3 · 10–20 lb total, stay fast, step down' }],
       slots: [
-        { name: 'Deadlift', sets: 2, reps: 5, ...MAIN, increment: 10 },
-        { name: 'Overhead Press', sets: 3, reps: 5, ...MAIN, increment: 2.5 },
-        { name: 'Bulgarian Split Squat', sets: 3, reps: [8, 12], ...LIN, introSets: 2 },
-        { name: 'Lat Pulldown', sets: 4, reps: [8, 12], ...LIN, introSets: 2 },
-        { name: 'Incline DB Press', sets: 3, reps: [8, 12], ...LIN, introSets: 2, superset: true },
-        { name: 'Curl', sets: 3, reps: [10, 15], ...LIN, introSets: 2 },
-        { name: 'Calf Raise', sets: 3, reps: [10, 15], ...LIN, introSets: 2, superset: true },
-        { name: 'Ab Wheel', sets: 3, reps: [8, 15], ...LIN, introSets: 2, bodyweight: true },
-      ],
-    },
-    {
-      name: 'Day 3',
-      warmups: [],
-      slots: [
-        { name: 'Back Squat', sets: 3, reps: 5, ...MAIN, increment: 5 },
-        { name: 'Bench Press', sets: 3, reps: 5, ...MAIN, increment: 5 },
-        { name: 'DB Reverse Lunge', sets: 2, reps: [8, 12], ...LIN, introSets: 1 },
-        { name: 'Cable Row', sets: 3, reps: [8, 12], ...LIN, introSets: 2 },
-        { name: 'Leg Curl', sets: 3, reps: [10, 15], ...LIN, introSets: 2, superset: true },
-        { name: 'Overhead Extension', sets: 3, reps: [10, 15], ...LIN, introSets: 2 },
-        { name: 'Hammer Curl', sets: 2, reps: [10, 15], ...LIN, introSets: 1, superset: true },
-        { name: 'Lateral Raise', sets: 3, reps: [12, 20], ...LIN, introSets: 2 },
-        { name: 'Face Pull', sets: 2, reps: [12, 20], ...LIN, introSets: 2, superset: true },
+        { name: 'Barbell BSS', sets: 3, reps: 6, ...MAIN, increment: 5, note: 'Per leg. Squat to a box or pad for depth. Linear: +5 lb a week when every rep is there.' },
+        { name: 'Standing DB Overhead Press', sets: 4, reps: 6, ...MAIN, increment: 5, note: 'Per hand. +5 lb per hand when all reps are clean. Stuck: add a rep per set (4 × 7, then 4 × 8) before adding weight.' },
+        { name: 'RDL', sets: 3, reps: [6, 8], ...LIN, targetRpe: 7, increment: 10, note: 'Top of the range at RPE 7 or easier → +10 lb, back to 6.' },
+        { name: 'Chest-Supported Row', sets: 3, reps: [8, 12], ...LIN, note: 'Top of the range at RPE 8 or easier → +5 lb, back to 8.' },
+        { name: 'Ab Wheel', sets: 3, reps: [6, 10], ...MANUAL, bodyweight: true, note: 'Start on knees; only roll out as far as your lower back stays flat. At 3 × 10 full range, slow the way out to 3 s. Then roll toward a wall from standing.' },
+        { name: 'Suitcase Carry', sets: 2, reps: [30, 40], ...MANUAL, note: 'Reps = metres per side (about 40–50 steps). Start at 70–80 lb. Build from 30 to 40 m, then add 5–10 lb and go back to 30 m. Stay upright, no leaning.' },
       ],
     },
   ],
 };
 
-export const TEMPLATES: ProgramTemplate[] = [THREE_DAY, PRELOADED];
+export const TEMPLATES: ProgramTemplate[] = [AB];
 
 /** Build a program from a template (reusing exercises by name) and make it the active one. */
 export async function loadTemplate(t: ProgramTemplate, d: WorkoutDB = db): Promise<Program> {
@@ -151,6 +98,7 @@ export async function loadTemplate(t: ProgramTemplate, d: WorkoutDB = db): Promi
         ...(ts.rule ? { rule: ts.rule } : {}),
         ...(ts.introSets != null ? { introSets: ts.introSets } : {}),
         ...(ts.superset ? { supersetWithPrev: true } : {}),
+        ...(ts.note ? { note: ts.note } : {}),
       }));
     }
     program.days.push(day);

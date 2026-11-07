@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { MAX_EFFECTIVE_REPS } from '../../engine';
-import { createProgram, emptyProgram, findOrCreateExercise, newDay, newId, newSlot, newWarmup, saveProgram, updateExercise } from '../../db/ops';
+import { createProgram, deleteProgram, emptyProgram, findOrCreateExercise, newDay, newId, newSlot, newWarmup, saveProgram, updateExercise } from '../../db/ops';
 import { TEMPLATES, loadTemplate } from '../../db/templates';
 import { getActiveProgram, getAllExercises, getArchivedPrograms, getInProgressSession } from '../../db/queries';
 import { useLiveQuery } from '../../db/useLiveQuery';
@@ -62,6 +62,7 @@ export function ProgramEditor() {
   const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [confirmNew, setConfirmNew] = useState(false);
   const [source, setSource] = useState<NewSource>('template:0');
+  const [confirmDelete, setConfirmDelete] = useState<Program | null>(null);
 
   useEffect(() => {
     if (active === undefined) return;
@@ -215,13 +216,16 @@ export function ProgramEditor() {
                     <strong>{p.name}</strong>
                     <span class="muted small"> · {fmtDate(p.createdAt)} – {fmtDate(p.archivedAt)}</span>
                   </summary>
+                  <div class="row" style="justify-content:flex-end; margin-top:6px">
+                    <button type="button" class="btn btn-small btn-ghost" style="color: var(--danger)" aria-label={`Delete ${p.name}`} onClick={() => setConfirmDelete(p)}>Delete</button>
+                  </div>
                   {p.days.map((d) => (
                     <div key={d.id} class="small" style="margin-top:6px">
                       <strong>{d.name}</strong>
                       <ul style="margin:2px 0 0; padding-left:18px">
                         {d.slots.map((s) => {
                           const ex = exercises.find((e) => e.id === s.exerciseId);
-                          return <li key={s.id}>{ex?.name ?? 'Unknown'} — {s.sets} × {s.progression === 'single' ? s.targetReps : `${s.repMin}–${s.repMax}`}{s.targetRpe != null ? ` @ ${s.targetRpe}` : ''}{s.rule === 'linear' ? ' · linear' : ''}</li>;
+                          return <li key={s.id}>{ex?.name ?? 'Unknown'} — {s.sets} × {s.progression === 'single' ? s.targetReps : `${s.repMin}–${s.repMax}`}{s.targetRpe != null ? ` @ ${s.targetRpe}` : ''}{s.rule && s.rule !== 'rpe' ? ` · ${s.rule}` : ''}</li>;
                         })}
                       </ul>
                     </div>
@@ -233,6 +237,26 @@ export function ProgramEditor() {
         </>
       )}
 
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        title={`Delete “${confirmDelete?.name ?? ''}”?`}
+        confirmLabel="Delete"
+        danger
+        onCancel={() => setConfirmDelete(null)}
+        onConfirm={async () => {
+          if (!confirmDelete) return;
+          try {
+            await deleteProgram(confirmDelete.id);
+            setMessage({ kind: 'ok', text: `Deleted “${confirmDelete.name}”` });
+          } catch (e) {
+            setMessage({ kind: 'error', text: (e as Error).message });
+          } finally {
+            setConfirmDelete(null);
+          }
+        }}
+      >
+        The program is removed from this list. Logged sessions and History stay: they belong to the exercises.
+      </ConfirmDialog>
       <ConfirmDialog
         open={confirmNew}
         title={active ? `Archive “${active.name}”?` : 'Create a program?'}
@@ -386,7 +410,7 @@ interface SlotProps {
 
 function SlotEditor({ slot, exercise, index, count, label, showIntro, onChange, onMove, onDelete }: SlotProps) {
   const keyReps = slot.progression === 'single' ? slot.targetReps : slot.repMin;
-  const offChart = slot.rule !== 'linear' && keyReps != null && keyReps + (10 - (slot.targetRpe ?? 8)) > MAX_EFFECTIVE_REPS;
+  const offChart = (slot.rule == null || slot.rule === 'rpe') && keyReps != null && keyReps + (10 - (slot.targetRpe ?? 8)) > MAX_EFFECTIVE_REPS;
 
   return (
     <div class="card" style="margin-top:10px; background: var(--bg)">

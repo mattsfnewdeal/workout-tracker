@@ -10,7 +10,8 @@ const MODES: { value: Slot['progression']; label: string; hint: string }[] = [
 ];
 const RULES: { value: ProgressionRule; label: string; hint: string }[] = [
   { value: 'rpe', label: 'By RPE', hint: 'Next load comes from set 1’s e1RM at the RPE goal.' },
-  { value: 'linear', label: 'Linear', hint: 'Add one increment when every set hits the target (the top of a range). Hold on a miss; drop 10% after two misses in a row. RPE is noted, not used.' },
+  { value: 'linear', label: 'Linear', hint: 'Add one increment when every set hits the target: fixed reps, or the top of a range at or under the RPE goal. Fixed reps drop 10% after two misses in a row.' },
+  { value: 'manual', label: 'Manual', hint: 'No suggestion beyond last time’s load. Progress by feel, guided by the note.' },
 ];
 
 interface Props<T extends SlotSpec> {
@@ -57,7 +58,7 @@ function Segmented<V extends string>({ label, value, options, onChange }: { labe
 /** Sets, fixed reps or a rep range, the progression rule and the RPE goal. Used by the program builder and the swap / add dialog. */
 export function SlotFields<T extends SlotSpec>({ slot, onChange, showIntro }: Props<T>) {
   const mode = MODES.find((m) => m.value === slot.progression) ?? MODES[0];
-  const rule = slot.rule === 'linear' ? 'linear' : 'rpe';
+  const rule: ProgressionRule = slot.rule ?? 'rpe';
   const ruleInfo = RULES.find((r) => r.value === rule) ?? RULES[0];
   const intro = (slot as { introSets?: number }).introSets;
 
@@ -67,11 +68,10 @@ export function SlotFields<T extends SlotSpec>({ slot, onChange, showIntro }: Pr
   };
   const setRule = (r: ProgressionRule) => {
     const next = { ...slot } as T & { rule?: ProgressionRule };
-    if (r === 'linear') next.rule = 'linear';
-    else {
+    if (r === 'rpe') {
       delete next.rule;
       next.targetRpe ??= DEFAULT_TARGET_RPE; // by-RPE needs a goal: it sets the load
-    }
+    } else next.rule = r;
     onChange(next);
   };
   const setIntro = (v: number | undefined) => {
@@ -117,17 +117,32 @@ export function SlotFields<T extends SlotSpec>({ slot, onChange, showIntro }: Pr
         )}
       </div>
       <label class="field" style="margin-top:8px">
-        {rule === 'rpe' ? 'RPE goal' : 'RPE goal (optional — colours sets, doesn’t set the load; tap again to clear)'}
+        {rule === 'rpe' ? 'RPE goal' : rule === 'linear' ? 'RPE goal (optional — a range only moves up at or under it; tap again to clear)' : 'RPE goal (optional — colours sets; tap again to clear)'}
         <RpePicker
           compact
           value={slot.targetRpe}
           onChange={(v) => {
             const next = { ...slot };
-            if (v == null && rule === 'linear') delete next.targetRpe;
+            if (v == null && rule !== 'rpe') delete next.targetRpe;
             else next.targetRpe = v ?? DEFAULT_TARGET_RPE;
             onChange(next);
           }}
           label="RPE goal"
+        />
+      </label>
+      <label class="field" style="margin-top:8px">
+        Note
+        <input
+          class="text"
+          type="text"
+          value={(slot as { note?: string }).note ?? ''}
+          placeholder="per leg, cues, how to progress…"
+          onInput={(e) => {
+            const next = { ...slot } as T & { note?: string };
+            const v = e.currentTarget.value;
+            if (v.trim()) next.note = v; else delete next.note;
+            onChange(next);
+          }}
         />
       </label>
     </>

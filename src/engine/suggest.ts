@@ -1,6 +1,6 @@
 import { suggestBodyweight } from './bodyweight';
 import { findSet1, firstSession } from './common';
-import { suggestLinear } from './linear';
+import { suggestLinear, suggestManual } from './linear';
 import { suggestDouble } from './double';
 import { suggestSingle } from './single';
 import type { LoggedSet, SlotParams, Suggestion, SuggestionReason } from './types';
@@ -13,6 +13,7 @@ import type { LoggedSet, SlotParams, Suggestion, SuggestionReason } from './type
 export function suggest(p: SlotParams, last: LoggedSet[] | null | undefined, previous?: LoggedSet[] | null): Suggestion {
   if (!last || last.length === 0 || !findSet1(last)) return firstSession(p);
   if (p.rule === 'linear') return suggestLinear(p, last, previous ?? null);
+  if (p.rule === 'manual') return suggestManual(p, last);
   if (p.bodyweight) return suggestBodyweight(p, last);
   return p.progression === 'single' ? suggestSingle(p, last) : suggestDouble(p, last);
 }
@@ -32,6 +33,8 @@ export function reasonText(reason: SuggestionReason): string {
     case 'linear-progress': return 'Every set hit the target — add one increment';
     case 'linear-hold-missed': return 'Missed reps — same load, get every set';
     case 'linear-hold-range': return 'Same load — get every set to the top of the range';
+    case 'linear-hold-rpe': return 'Top of the range, but over the RPE goal — same load';
+    case 'manual-hold': return 'Same as last time — progress by feel';
     case 'linear-deload': return 'Missed two sessions in a row — drop 10% and build back';
   }
 }

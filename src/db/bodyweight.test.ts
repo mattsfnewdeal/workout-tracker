@@ -5,7 +5,8 @@ import { checkFinish, createProgram, emptyProgram, findOrCreateExercise, finishS
 import { getActiveProgram, getExerciseHistory, getLastCompletedSets, getSessionLogs } from './queries';
 import { buildPlan } from '../state/plan';
 import { swapExercise } from '../state/slotChanges';
-import { PRELOADED, loadTemplate } from './templates';
+import { loadTemplate } from './templates';
+import { PRELOADED } from './templateFixtures';
 
 let d: WorkoutDB;
 beforeEach(() => {

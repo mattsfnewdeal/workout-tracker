@@ -5,7 +5,8 @@ import { checkFinish, findOrCreateExercise, finishSession, startSession, updateS
 import { getActiveProgram, getRecentCompletedSets, getSessionLogs } from './queries';
 import { buildPlan, inIntroWeeks, introEndsAt, supersetGroups } from '../state/plan';
 import { specOf, swapExercise } from '../state/slotChanges';
-import { THREE_DAY, loadTemplate } from './templates';
+import { loadTemplate } from './templates';
+import { THREE_DAY } from './templateFixtures';
 
 let d: WorkoutDB;
 beforeEach(() => {

@@ -9,7 +9,7 @@ const set = (load: number, reps: number, rpe: number | null, setNumber = 1): Log
 const ALL_REASONS: SuggestionReason[] = [
   'first-session', 'double-progress', 'double-hold-add-reps', 'double-rpe-high', 'double-below-min',
   'single-progress', 'single-hold-rpe-high', 'single-hold-missed-reps', 'fallback-add-increment', 'fallback-hold',
-  'linear-progress', 'linear-hold-missed', 'linear-hold-range', 'linear-deload',
+  'linear-progress', 'linear-hold-missed', 'linear-hold-range', 'linear-hold-rpe', 'linear-deload', 'manual-hold',
 ];
 
 describe('suggest', () => {
@@ -48,6 +48,8 @@ describe('suggest', () => {
       [{ ...single, rule: 'linear' }, [set(225, 5, 7), set(225, 4, null, 2)]],
       [{ ...single, rule: 'linear' }, [set(225, 5, 7), set(225, 4, null, 2)], [set(225, 4, 7)]],
       [{ ...double, rule: 'linear' }, [set(100, 7, 8)]],
+      [{ ...double, rule: 'linear', rpeCap: 8 }, [set(100, 9, 9)]],
+      [{ ...double, rule: 'manual' }, [set(100, 7, 8)]],
       [{ ...single, rule: 'linear' }, [set(225, 5, 7), set(225, 4, null, 2)], [set(225, 4, 7)]],
     ];
     const seen = new Set<SuggestionReason>();

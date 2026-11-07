@@ -1,4 +1,4 @@
-# Workout Tracker — Spec (v1.7)
+# Workout Tracker — Spec (v1.8)
 
 A simple, personal lifting tracker. Runs as a PWA on iPhone (added to the home screen). One user, no backend, no accounts.
 
@@ -353,3 +353,22 @@ SetLog
 2. **Typed RPE.** The RPE cell is a text field like load and reps (decimal keypad). The stored value is the nearest half step from 6 to 10; anything typed under 6 is stored as "<6" (`RPE_BELOW_6 = 5`, `toLoggedRpe` in `src/engine/rpeTable.ts`) and the field reads "<6" when it isn't focused. RPE 6 is now on the chart (`RPE_MIN = 6`; the RTS table covers it for sets up to 11 reps). "<6" is never rated for an e1RM, so on a by-RPE slot a "<6" set 1 falls back to the one-increment rule (low confidence); on a linear slot it is just a note. It colours as "easy" against any goal. The field carries the set's colour like the old chip did. (The docked RPE bar tried earlier in v1.7 was dropped the same day.) The RPE goal picker in the builder now runs 6–10.
 
 3. **Supersets are ordinary cards in one frame.** A superset's exercises render as normal cards (5A, 5B …) inside one blue-bordered frame, with a "— superset —" divider between them; nothing is highlighted and no set is marked "next" (both earlier v1.7 layouts, interleaved rounds and per-exercise blocks with a next marker, were dropped as too busy). Inside a superset the accessible names carry the exercise ("Lateral Raise set 1 load"). Today shows the same linked cards.
+
+## v1.8 amendments (2026-11-06)
+
+1. **Preloaded "Day A / Day B"** replaces both earlier templates (which live on only as test fixtures in `src/db/templateFixtures.ts`). Matt's program as written:
+
+   | Day | Warm-up (checkbox) | Exercises |
+   |---|---|---|
+   | Day A (Tue) | Seated box jump 3 × 3 | 1 Trap Bar Deadlift 3 × 5 linear +10 · 2 Bench Press 4 × 5 linear +5 · 3 FFE Split Squat 3 × 8–10 (per leg) · 4 Weighted Chin-up 3 × 3–6 (bodyweight + added) · 5 Pallof Press 2 × 10 (per side) |
+   | Day B (Thu/Fri) | Weighted box jump 3 × 3, 10–20 lb, stay fast, step down | 1 Barbell BSS 3 × 6 linear +5 (per leg, to a box) · 2 Standing DB Overhead Press 4 × 6 linear +5 per hand · 3 RDL 3 × 6–8 @ 7, +10 · 4 Chest-Supported Row 3 × 8–12 · 5 Ab Wheel 3 × 6–10 (bodyweight, manual) · 6 Suitcase Carry 2 × 30–40 m per side (manual) |
+
+   Matt dropped the Seated DB Press (Day A) and the Incline Barbell Bench (Day B) the same evening, which removed both supersets. Mapping decisions: box jumps are checkbox warm-ups (no progression); the main lifts have no RPE goal; accessories are rep ranges with the linear rule and an RPE goal of 8 (RDL 7), which is the program's "add the smallest jump when all sets hit the top of the range at RPE 8 or easier, start back at the bottom"; jumps are the exercise increments (RDL 10, incline 5, dumbbell work 5 per hand, chin-up 5 added, others 5); the ab wheel and the carry use the new manual rule with the program's instructions as the slot note; the carry logs metres per side in the reps field (range 30–40). "Start the linear lifts about 10 % under" is the first session's load, picked by the lifter (the note says so).
+
+2. **Linear rule, rep ranges: RPE condition.** A rep-range slot on the linear rule moves up only when every set reached the top of the range *and* every logged RPE is at or under the slot's RPE goal (`SlotParams.rpeCap`, taken from `Slot.targetRpe`); otherwise it holds with reason `linear-hold-rpe` ("Top of the range, but over the RPE goal"). Fixed-rep linear slots still ignore RPE. A slot without an RPE goal has no RPE condition.
+
+3. **Manual rule.** `rule: 'manual'`: the suggestion is last time's load (reason `manual-hold`, "Same as last time — progress by feel"), normal confidence, e1RM shown when computable, no deload, no beat target. For exercises whose progression is technique or distance, not load. Offered in the builder and the swap / add dialog; the RPE goal is optional.
+
+4. **Slot notes.** `Slot.note` (builder field "Note", also in the swap / add dialog) is shown on the card on Today and the log screen in a muted gold line, under the suggestion. Snapshotted onto `PlannedSlot.note`.
+
+5. **Delete archived programs.** The Program tab's Archived list has a Delete button (with confirmation) per program. The active program can't be deleted. Sessions and set rows are kept, so History is unaffected (it is per exercise).
